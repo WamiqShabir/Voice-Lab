@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bg-orbs" aria-hidden="true">
+  <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+  <div class="grid-overlay"></div>
+</div>
+
+<header class="site-header">
+  <div class="logo">🎙️ Voice<span>Lab</span></div>
+  <p class="tagline">Record · Type · Upload — build your voice here</p>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-tab="record">🎤 Record</button>
+  <button class="tab" data-tab="text">✍️ Text to Voice</button>
+  <button class="tab" data-tab="upload">📁 Upload</button>
+</nav>
+
+<main>
+
+  <!-- ============ 1. RECORD ============ -->
+  <section id="tab-record" class="panel active">
+    <div class="card">
+      <h2>🎤 Record your voice</h2>
+      <p class="hint">Speak clearly for 10–30 seconds, then download it. AI voice conversion is coming soon.</p>
+
+      <div class="record-wrap">
+        <button id="recordBtn" class="record-btn" title="Record / Stop"><span class="record-icon"></span></button>
+        <div class="record-meta">
+          <div id="recordTimer">0:00</div>
+          <div class="meter"><div id="meterFill"></div></div>
+        </div>
+      </div>
+      <p class="tiny" id="recordHint">Click the button to start recording.</p>
+
+      <ul id="recordings" class="recordings"></ul>
+    </div>
+  </section>
+
+  <!-- ============ 2. TEXT TO VOICE ============ -->
+  <section id="tab-text" class="panel">
+    <div class="card">
+      <h2>✍️ Text to Voice</h2>
+      <p class="hint">Type your line and pick a voice. Male and Female voices work now — Famous voices come with the AI update.</p>
+
+      <label class="field-label" for="voiceCat">Voice type</label>
+      <select id="voiceCat" class="input">
+        <option value="male">🧔 Male</option>
+        <option value="female">👩 Female</option>
+        <option value="famous">⭐ Famous people (AI coming soon)</option>
+      </select>
+
+      <label class="field-label" for="voiceSelect">Voice</label>
+      <select id="voiceSelect" class="input">
+        <optgroup label="🧔 Male">
+          <option value="Joey">Joey — deep US male</option>
+          <option value="Matthew">Matthew — US male</option>
+          <option value="Liam">Liam — US male</option>
+          <option value="Daniel">Daniel — UK male</option>
+          <option value="Brian">Brian — UK male</option>
+          <option value="Geraint">Geraint — Welsh male</option>
+          <option value="Russell">Russell — Australian male</option>
+          <option value="en_us_006">AI Deep Male (Trump style)</option>
+        </optgroup>
+        <optgroup label="👩 Female">
+          <option value="Salli">Salli — US female</option>
+          <option value="Joanna">Joanna — US female</option>
+          <option value="Kendra">Kendra — US female</option>
+          <option value="Kimberly">Kimberly — US female</option>
+          <option value="Olivia">Olivia — US female</option>
+          <option value="Amy">Amy — UK female</option>
+          <option value="Emma">Emma — UK female</option>
+          <option value="Nicole">Nicole — Australian female</option>
+        </optgroup>
+        <optgroup label="⭐ Famous (coming soon)">
+          <option value="trump" disabled>Donald Trump — AI soon</option>
+          <option value="obama" disabled>Barack Obama — AI soon</option>
+          <option value="cristiano" disabled>Cristiano Ronaldo — AI soon</option>
+        </optgroup>
+      </select>
+
+      <label class="field-label" for="ttsText">Text</label>
+      <textarea id="ttsText" class="input" rows="4" placeholder="Say something…"></textarea>
+
+      <div class="btn-row">
+        <button id="ttsBtn" class="btn btn-primary">🎧 Generate Voice</button>
+      </div>
+
+      <div class="result-card hidden" id="ttsResult">
+        <div class="result-head"><span class="badge">✅ Ready</span><button class="icon-btn" data-close="ttsResult">✕</button></div>
+        <audio controls></audio>
+        <div class="result-actions">
+          <button class="btn btn-primary btn-dl">⬇️ Download</button>
+        </div>
+        <p class="tiny ai-note hidden" id="ttsAiNote">🚧 Famous voices are not connected yet — they'll work once the AI is added.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. UPLOAD ============ -->
+  <section id="tab-upload" class="panel">
+    <div class="card">
+      <h2>📁 Upload audio</h2>
+      <p class="hint">Upload a WAV, MP3, M4A or WebM file and download it. AI voice conversion is coming soon.</p>
+
+      <div id="dropzone" class="dropzone">
+        <div class="dz-icon">🎵</div>
+        <p>Drag & drop your audio here<br><span>or click to browse</span></p>
+        <input type="file" id="fileInput" accept="audio/*,.wav,.mp3,.m4a,.webm,.ogg" hidden>
+      </div>
+
+      <div class="result-card hidden" id="uploadResult">
+        <div class="result-head"><span class="badge">📂 Loaded</span><button class="icon-btn" data-close="uploadResult">✕</button></div>
+        <audio controls></audio>
+        <div class="result-actions">
+          <button class="btn btn-primary btn-dl">⬇️ Download</button>
+        </div>
+        <p class="tiny ai-note hidden" id="uploadAiNote">🚧 AI conversion is coming soon.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toasts" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
