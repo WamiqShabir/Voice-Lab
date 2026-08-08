@@ -1,103 +1,137 @@
+/* ================= Voice Lab — app.js ================= */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
-/* ---------- helpers ---------- */
+/* ---------- toasts ---------- */
 function toast(msg, type = 'info') {
   const t = document.createElement('div');
-  t.className = 'toast ' + (type === 'error' ? 'error' : '');
+  t.className = 'toast ' + (type === 'ok' ? 'ok' : type === 'error' ? 'error' : '');
   t.textContent = msg;
   $('#toasts').appendChild(t);
-  setTimeout(() => { t.classList.add('leaving'); setTimeout(() => t.remove(), 320); }, 3400);
+  setTimeout(() => { t.classList.add('leaving'); setTimeout(() => t.remove(), 320); }, 3600);
 }
 
-function saveBlob(blob, filename) {
+/* ---------- helpers ---------- */
+function saveBlob(blob, name) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = filename;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  toast('✅ Saved: ' + filename);
+  toast('✅ Saved: ' + name, 'ok');
+}
+function setBusy(btn, busy) { btn.disabled = busy; btn.classList.toggle('busy', busy); }
+function setStatus(id, on, text) {
+  $(id).classList.toggle('hidden', !on);
+  if (text) $(id).querySelector('.status-text').textContent = text;
 }
 
-function showResult(id, { blob, url, name }) {
-  const box = document.getElementById(id);
+/* ---------- result cards ---------- */
+function showResult(id, blob, name, revokeExtras = []) {
+  const box = $(id);
   box.classList.remove('hidden');
   const audio = box.querySelector('audio');
   if (audio.dataset.url) URL.revokeObjectURL(audio.dataset.url);
-  audio.src = blob ? URL.createObjectURL(blob) : url;
-  audio.dataset.url = audio.src;
-  box.querySelector('.btn-dl').onclick = () => {
-    if (blob) saveBlob(blob, name);
-    else {
-      fetch(url).then(r => { if (!r.ok) throw 0; return r.blob(); }).then(b => saveBlob(b, name))
-        .catch(() => { window.open(url, '_blank'); toast('⚠️ Direct save blocked — opened in new tab, right-click → Save Audio As…', 'error'); });
-    }
-  };
+  const url = URL.createObjectURL(blob);
+  audio.src = url;
+  audio.dataset.url = url;
+  box.querySelector('.btn-dl').onclick = () => saveBlob(blob, name);
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-
 function hideResult(id) {
-  const box = document.getElementById(id);
+  const box = $(id);
   box.classList.add('hidden');
-  const audio = box.querySelector('audio');
-  audio.pause();
-  if (audio.dataset.url) URL.revokeObjectURL(audio.dataset.url);
+  const a = box.querySelector('audio');
+  a.pause();
+  if (a.dataset.url) URL.revokeObjectURL(a.dataset.url);
 }
 $$('.icon-btn').forEach(b => b.addEventListener('click', () => hideResult(b.dataset.close)));
 
 /* ---------- tabs ---------- */
-$$('.tab').forEach(tab => tab.addEventListener('click', () => {
-  $$('.tab').forEach(t => t.classList.toggle('active', t === tab));
-  $$('.panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab.dataset.tab));
-}));
+function goTab(name) {
+  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  $$('.panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+$$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
-/* ================= RECORD ================= */
+/* =====================================================================
+   AI ENGINE PLACEHOLDERS
+   These do NOT do real AI yet. When you're ready, replace the body of
+   each one with your own AI call (on your other PC) and the page will
+   wire it up automatically. Keep the signature so the rest works.
+   ===================================================================== */
+
+/// ADD AI HERE — Convert an audio blob into a chosen voice.
+/// Returns a Promise<Blob>. Return null to show "not connected" toast.
+async function aiConvertVoice(audioBlob, targetVoice) {
+  await new Promise(r => setTimeout(r, 1200)); // pretend to work
+  return null; // not connected yet
+}
+
+/// ADD AI HERE — Turn text into spoken audio in a chosen voice.
+/// Returns a Promise<Blob>. Return null to show "not connected" toast.
+async function aiTextToVoice(text, targetVoice) {
+  await new Promise(r => setTimeout(r, 1200));
+  return null; // not connected yet
+}
+
+function notConnected() {
+  toast('⚠️ AI engine not connected yet — coming soon (we wire it up together later).', 'error');
+}
+
+/* =====================================================================
+   TAB 1 — RECORD & CONVERT
+   ===================================================================== */
 let mediaRecorder = null, recordChunks = [], recordStream = null, recordCtx = null, meterRAF = null, recordTimer = null, recordStart = 0;
+let currentRecordedBlob = null, currentRecordedName = 'recording.webm';
 
 $('#recordBtn').addEventListener('click', async () => {
+  const btn = $('#recordBtn');
   if (mediaRecorder && mediaRecorder.state === 'recording') { stopRecording(); return; }
   try { recordStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch (e) { return toast('❌ Mic blocked — allow microphone access', 'error'); }
-
+  catch (e) { return toast('❌ Microphone blocked — allow mic access in the browser.', 'error'); }
   recordChunks = [];
-  const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-  mediaRecorder = new MediaRecorder(recordStream, mime ? { mimeType: mime } : undefined);
+  mediaRecorder = new MediaRecorder(recordStream);
   mediaRecorder.ondataavailable = e => { if (e.data.size) recordChunks.push(e.data); };
   mediaRecorder.onstop = () => {
-    const type = mediaRecorder.mimeType || 'audio/webm';
-    const blob = new Blob(recordChunks, { type });
+    const blob = new Blob(recordChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
     recordStream.getTracks().forEach(t => t.stop());
-    addRecording(blob);
+    currentRecordedBlob = blob;
+    currentRecordedName = 'recording_' + Date.now() + '.webm';
+    // show what we recorded immediately (downloadable + preview)
+    showResult('recordResult', blob, currentRecordedName);
+    $('#recordHint').textContent = '✅ Done! Preview below — you can download it or convert it.';
+    toast('🎤 Recording saved');
   };
   mediaRecorder.start();
-  $('#recordBtn').classList.add('recording');
-  $('#recordHint').textContent = '🔴 Recording… click the button to stop.';
+  btn.classList.add('recording');
+  $('#recordHint').textContent = '🔴 Recording… press again to stop.';
   recordStart = Date.now();
   recordTimer = setInterval(() => {
     const s = Math.floor((Date.now() - recordStart) / 1000);
     $('#recordTimer').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   }, 250);
   startMeter(recordStream);
-  toast('🎤 Recording started');
+  toast('🎤 Recording started…');
 });
 
 function stopRecording() {
   mediaRecorder.stop();
   $('#recordBtn').classList.remove('recording');
-  $('#recordHint').textContent = '✅ Saved below — you can download it.';
   clearInterval(recordTimer);
   cancelAnimationFrame(meterRAF);
   if (recordCtx) { recordCtx.close(); recordCtx = null; }
   $('#meterFill').style.width = '0%';
 }
-
 function startMeter(stream) {
   recordCtx = new AudioContext();
   const src = recordCtx.createMediaStreamSource(stream);
-  const an = recordCtx.createAnalyser(); an.fftSize = 256;
+  const an = recordCtx.createAnalyser();
+  an.fftSize = 256;
   src.connect(an);
   const data = new Uint8Array(an.frequencyBinCount);
   const draw = () => {
@@ -109,101 +143,75 @@ function startMeter(stream) {
   draw();
 }
 
-function addRecording(blob) {
-  const url = URL.createObjectURL(blob);
-  const rec = { blob, url, name: 'recording_' + Date.now() + '.webm' };
-  const li = document.createElement('li');
-  li.className = 'recording';
-  li.innerHTML = `
-    <audio controls src="${url}"></audio>
-    <div class="btn-row">
-      <button class="btn btn-primary">⬇️ Download</button>
-      <button class="btn btn-ghost" disabled title="AI coming soon">🤖 AI Convert (soon)</button>
-      <button class="btn btn-ghost">🗑️</button>
-    </div>`;
-  const [dl, , del] = li.querySelectorAll('button');
-  dl.onclick = () => saveBlob(blob, rec.name);
-  del.onclick = () => { URL.revokeObjectURL(url); li.remove(); };
-  $('#recordings').prepend(li);
-}
-
-/* ================= TEXT TO VOICE ================= */
-const CAT = { male: 'male', female: 'female', famous: 'famous' };
-
-function updateVoiceList() {
-  const cat = $('#voiceCat').value;
-  const opts = $('#voiceSelect img, #voiceSelect option').length;
-  $('#voiceSelect').querySelectorAll('optgroup').forEach(og => {
-    og.hidden = (og.label.includes('Male') && cat !== CAT.male) ||
-                (og.label.includes('Female') && cat !== CAT.female) ||
-                (og.label.includes('Famous') && cat !== CAT.famous) ||
-                (og.label.includes('Famous') && cat === CAT.famous && false);
-  });
-  $$('#voiceSelect optgroup').forEach(og => {
-    const isMale = og.label.includes('Male'), isFemale = og.label.includes('Female'), isFamous = og.label.includes('Famous');
-    og.hidden = cat === CAT.male ? !isMale : cat === CAT.female ? !isFemale : !isFamous;
-  });
-}
-$('#voiceCat').addEventListener('change', updateVoiceList);
-updateVoiceList();
-
-async function ttsTikTok(text, voice) {
-  const r = await fetch('https://tts-toktok.vercel.app/tts', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, output_format: 'base64', text_speaker: voice })
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const j = await r.json();
-  const bytes = Uint8Array.from(atob(j.audio_base64), c => c.charCodeAt(0));
-  return new Blob([bytes], { type: 'audio/mpeg' });
-}
-
-async function ttsPolly(text, voice) {
-  const url = 'https://api.streamelements.com/kappa/v2/speech?voice=' + encodeURIComponent(voice) + '&text=' + encodeURIComponent(text);
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return await r.blob();
-}
-
-$('#ttsBtn').addEventListener('click', async () => {
-  const text = $('#ttsText').value.trim();
-  if (!text) return toast('⚠️ Type some text first', 'error');
-
-  const cat = $('#voiceCat').value;
-  const voice = $('#voiceSelect').value;
-  $('#ttsAiNote').classList.toggle('hidden', cat !== CAT.famous);
-
-  if (cat === CAT.famous) {
-    return toast('🚧 Famous voices come with the AI update — pick a Male or Female voice for now', 'error');
-  }
-  if (voice === 'en_us_006') { /* AI deep male below */ }
-
-  const btn = $('#ttsBtn');
-  btn.disabled = true; const orig = btn.innerHTML;
-  btn.innerHTML = 'Generating…';
-
-  try {
-    let blob = (cat === CAT.male && voice === 'en_us_006')
-      ? await ttsTikTok(text, voice)
-      : await ttsPolly(text, voice);
-    showResult('ttsResult', { blob, name: 'voice_' + Date.now() + '.mp3' });
-    toast('🎧 Voice generated!');
-  } catch (e) {
-    toast('⚠️ Could not generate: ' + e.message + ' — try a different voice', 'error');
-  } finally { btn.disabled = false; btn.innerHTML = orig; }
+$('#recordConvertBtn').addEventListener('click', async () => {
+  if (!currentRecordedBlob) return toast('⚠️ Record something first.', 'error');
+  const btn = $('#recordConvertBtn');
+  const target = $('#recordTarget').value;
+  setBusy(btn, true);
+  setStatus('#recordStatus', true, '🎛️ AI is converting your voice…');
+  const out = await aiConvertVoice(currentRecordedBlob, target); // ADD AI HERE
+  setStatus('#recordStatus', false);
+  setBusy(btn, false);
+  if (!out) return notConnected();
+  showResult('recordResult', out, 'recording_' + Date.now() + '.wav');
+  toast('🤖 Voice converted!', 'ok');
 });
 
-/* ================= UPLOAD ================= */
+/* =====================================================================
+   TAB 2 — TEXT TO VOICE
+   ===================================================================== */
+$('#textBtn').addEventListener('click', async () => {
+  const text = $('#textInput').value.trim();
+  if (!text) return toast('⚠️ Type some text first.', 'error');
+  const target = $('#textTarget').value;
+  const btn = $('#textBtn');
+  setBusy(btn, true);
+  setStatus('#textStatus', true, '🎛️ AI is writing your line…');
+  const out = await aiTextToVoice(text, target); // ADD AI HERE
+  setStatus('#textStatus', false);
+  setBusy(btn, false);
+  if (!out) return notConnected();
+  showResult('textResult', out, 'speech_' + Date.now() + '.mp3');
+  toast('✨ Voice generated!', 'ok');
+});
+
+/* =====================================================================
+   TAB 3 — UPLOAD & CONVERT
+   ===================================================================== */
 const dz = $('#dropzone');
 dz.addEventListener('click', () => $('#fileInput').click());
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
-dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
 $('#fileInput').addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
 
+let uploadedBlob = null, uploadedName = 'upload.mp3';
 function handleFile(file) {
-  if (!file.type.startsWith('audio')) return toast('⚠️ That\'s not an audio file', 'error');
-  const name = 'upload_' + Date.now() + '.' + (file.name.split('.').pop() || 'mp3');
-  showResult('uploadResult', { blob: file, name });
-  toast('📂 Loaded — ' + file.name);
+  if (!file.type.startsWith('audio')) return toast('⚠️ That\'s not an audio file.', 'error');
+  uploadedBlob = file;
+  uploadedName = 'upload_' + Date.now() + '.' + (file.name.split('.').pop() || 'mp3');
+  showResult('uploadResult', file, uploadedName);   // downloadable right away
+  toast('📂 Audio loaded — ' + file.name, 'ok');
 }
+
+$('#uploadConvertBtn').addEventListener('click', async () => {
+  if (!uploadedBlob) return toast('⚠️ Upload an audio file first.', 'error');
+  const btn = $('#uploadConvertBtn');
+  const target = $('#uploadTarget').value;
+  setBusy(btn, true);
+  setStatus('#uploadStatus', true, '🎛️ AI is converting your audio…');
+  const out = await aiConvertVoice(uploadedBlob, target); // ADD AI HERE
+  setStatus('#uploadStatus', false);
+  setBusy(btn, false);
+  if (!out) return notConnected();
+  showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
+  toast('🤖 Audio converted!', 'ok');
+});
+
+/* ---------- Ctrl+Enter to generate text ---------- */
+$('#textInput').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); $('#textBtn').click(); }
+});
