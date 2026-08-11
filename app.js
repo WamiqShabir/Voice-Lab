@@ -234,7 +234,21 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   const target = $('#recordTarget').value;
   setBusy(btn, true);
   setStatus('#recordStatus', true, '🎛️ AI is converting your voice…');
-  const out = await aiConvertVoice(currentRecordedBlob, target); // ADD AI HERE
+  let out;
+
+try {
+  out = await aiConvertVoice(currentRecordedBlob, target);
+} catch (error) {
+  setStatus('#recordStatus', false);
+  setBusy(btn, false);
+
+  toast(
+    '❌ ' + (error.message || 'Voice conversion failed.'),
+    'error'
+  );
+
+  return;
+} // ADD AI HERE
   setStatus('#recordStatus', false);
   setBusy(btn, false);
   if (!out) return notConnected();
@@ -252,7 +266,21 @@ $('#textBtn').addEventListener('click', async () => {
   const btn = $('#textBtn');
   setBusy(btn, true);
   setStatus('#textStatus', true, '🎛️ AI is writing your line…');
-  const out = await aiTextToVoice(text, target); // ADD AI HERE
+ let out;
+
+try {
+  out = await aiTextToVoice(text, target);
+} catch (error) {
+  setStatus('#textStatus', false);
+  setBusy(btn, false);
+
+  toast(
+    '❌ ' + (error.message || 'Voice generation failed.'),
+    'error'
+  );
+
+  return;
+} // ADD AI HERE
   setStatus('#textStatus', false);
   setBusy(btn, false);
   if (!out) return notConnected();
@@ -288,7 +316,21 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   const target = $('#uploadTarget').value;
   setBusy(btn, true);
   setStatus('#uploadStatus', true, '🎛️ AI is converting your audio…');
-  const out = await aiConvertVoice(uploadedBlob, target); // ADD AI HERE
+  let out;
+
+try {
+  out = await aiConvertVoice(currentRecordedBlob, target);
+} catch (error) {
+  setStatus('#recordStatus', false);
+  setBusy(btn, false);
+
+  toast(
+    '❌ ' + (error.message || 'Voice conversion failed.'),
+    'error'
+  );
+
+  return;
+} // ADD AI HERE
   setStatus('#uploadStatus', false);
   setBusy(btn, false);
   if (!out) return notConnected();
