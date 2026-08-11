@@ -65,18 +65,103 @@ $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.
    wire it up automatically. Keep the signature so the rest works.
    ===================================================================== */
 
-/// ADD AI HERE — Convert an audio blob into a chosen voice.
-/// Returns a Promise<Blob>. Return null to show "not connected" toast.
+/* ==========================================================
+   VOICE LAB AI BACKEND
+   ========================================================== */
+
+const API_URL = 'https://voice-lab-api.onrender.com';
+
+
+/* ----------------------------------------------------------
+   Audio → authorized target voice
+   ---------------------------------------------------------- */
+
 async function aiConvertVoice(audioBlob, targetVoice) {
-  await new Promise(r => setTimeout(r, 1200)); // pretend to work
-  return null; // not connected yet
+
+  const formData = new FormData();
+
+  formData.append(
+    'audio',
+    audioBlob,
+    'voice-input.webm'
+  );
+
+  formData.append(
+    'target_voice',
+    targetVoice
+  );
+
+  const response = await fetch(
+    `${API_URL}/api/convert`,
+    {
+      method: 'POST',
+      body: formData
+    }
+  );
+
+  if (!response.ok) {
+
+    let message = 'Voice conversion failed.';
+
+    try {
+      const error = await response.json();
+
+      if (error.detail) {
+        message = error.detail;
+      }
+
+    } catch (_) {}
+
+    throw new Error(message);
+  }
+
+  const data = await response.blob();
+
+  return data;
 }
 
-/// ADD AI HERE — Turn text into spoken audio in a chosen voice.
-/// Returns a Promise<Blob>. Return null to show "not connected" toast.
+
+/* ----------------------------------------------------------
+   Text → authorized target voice
+   ---------------------------------------------------------- */
+
 async function aiTextToVoice(text, targetVoice) {
-  await new Promise(r => setTimeout(r, 1200));
-  return null; // not connected yet
+
+  const response = await fetch(
+    `${API_URL}/api/text-to-voice`,
+    {
+      method: 'POST',
+
+      headers: {
+        'Content-Type': 'application/json'
+      },
+
+      body: JSON.stringify({
+        text: text,
+        target_voice: targetVoice
+      })
+    }
+  );
+
+  if (!response.ok) {
+
+    let message = 'Text-to-speech failed.';
+
+    try {
+      const error = await response.json();
+
+      if (error.detail) {
+        message = error.detail;
+      }
+
+    } catch (_) {}
+
+    throw new Error(message);
+  }
+
+  const data = await response.blob();
+
+  return data;
 }
 
 function notConnected() {
