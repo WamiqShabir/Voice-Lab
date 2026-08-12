@@ -63,7 +63,7 @@ $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.
    ========================================================== */
 
 // ⚠️ PASTE YOUR NEW API KEY HERE
-const ELEVENLABS_API_KEY = 'YOUR_NEW_API_KEY_HERE';
+const ELEVENLABS_API_KEY = 'sk_1bfe2f03a2db58d6c1fb45ed321e47576b03a635116b3a28';
 
 /* Audio → target voice (Speech-to-Speech) */
 async function aiConvertVoice(audioBlob, voiceId) {
