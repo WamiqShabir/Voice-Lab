@@ -1,25 +1,15 @@
-<!DOCTYPE html>
-
+<<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b0e1a">
-
   <title>Voice Lab</title>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
-    rel="stylesheet"
-  >
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-
-  <!-- Background -->
 
   <div class="bg-orbs" aria-hidden="true">
     <div class="orb orb-1"></div>
@@ -27,397 +17,143 @@
     <div class="orb orb-3"></div>
   </div>
 
-  <!-- Header -->
-
   <header class="site-header">
-    <div class="logo">
-      🎙️ Voice<span>Lab</span>
-    </div>
-
-
-<p class="tagline">
-  Record · Type · Upload → convert to the voice you want
-</p>
-
-
+    <div class="logo">🎙️ Voice<span>Lab</span></div>
+    <p class="tagline">Record · Type · Upload → convert to the voice you want</p>
   </header>
 
-  <!-- Navigation -->
-
   <nav class="tabs" role="tablist">
-
-
-<button class="tab active" data-tab="recordrec">
-  🎤 Record &amp; Convert
-</button>
-
-<button class="tab" data-tab="textvoice">
-  ✍️ Text to Voice
-</button>
-
-<button class="tab" data-tab="uploadconv">
-  📁 Upload &amp; Convert
-</button>
-
-
+    <button class="tab active" data-tab="recordrec">🎤 Record &amp; Convert</button>
+    <button class="tab" data-tab="textvoice">✍️ Text to Voice</button>
+    <button class="tab" data-tab="uploadconv">📁 Upload &amp; Convert</button>
   </nav>
 
   <main>
 
+    <!-- ================= RECORD & CONVERT ================= -->
+    <section id="tab-recordrec" class="panel active">
+      <div class="card">
+        <h2>🎤 Record &amp; Convert</h2>
+        <p class="hint">Record your voice, choose the voice you want it changed to, then convert.</p>
 
-<!-- ================= RECORD & CONVERT ================= -->
+        <div class="record-wrap">
+          <button id="recordBtn" class="record-btn" title="Start / stop recording">
+            <span class="mic">🎙️</span>
+          </button>
+          <div class="meter"><div id="meterFill"></div></div>
+          <span id="recordTimer">0:00</span>
+        </div>
 
-<section id="tab-recordrec" class="panel active">
+        <p id="recordHint" class="muted">Press the microphone to start, press again to stop.</p>
 
-  <div class="card">
+        <label class="field-label" for="recordTarget">Change my voice into</label>
+        <select id="recordTarget" class="input">
+          <option value="HLXBCncM2sIxwTmiIZg8">Hannibal</option>
+          <option value="kqVT88a5QfII1HNAEPTJ">Decla Sage</option>
+          <option value="jv41DhCf464zw0TI7I1w">Imogen</option>
+          <option value="L1aJrPa7pLJEyYlh3Ilq">Oliver</option>
+        </select>
 
-    <h2>🎤 Record &amp; Convert</h2>
+        <div class="btn-row">
+          <button id="recordConvertBtn" class="btn btn-primary">🤖 Convert My Voice</button>
+        </div>
 
-    <p class="hint">
-      Record your voice, choose the voice you want it changed to, then convert.
-    </p>
+        <div id="recordStatus" class="status hidden">
+          <div class="spinner"></div>
+          <span class="status-text">Working…</span>
+        </div>
 
-    <div class="record-wrap">
-
-      <button
-        id="recordBtn"
-        class="record-btn"
-        title="Start / stop recording"
-      >
-        <span class="mic">🎙️</span>
-      </button>
-
-      <div class="meter">
-        <div id="meterFill"></div>
+        <div class="result-card hidden" id="recordResult">
+          <div class="result-head">
+            <span class="badge">✅ Ready</span>
+            <button class="icon-btn" data-close="recordResult">✕</button>
+          </div>
+          <audio controls></audio>
+          <button class="btn btn-dl">⬇️ Download</button>
+        </div>
       </div>
+    </section>
 
-      <span id="recordTimer">0:00</span>
+    <!-- ================= TEXT TO VOICE ================= -->
+    <section id="tab-textvoice" class="panel">
+      <div class="card">
+        <h2>✍️ Text to Voice</h2>
+        <p class="hint">Type your message and choose a voice to speak it.</p>
 
-    </div>
+        <label class="field-label" for="textInput">Your text</label>
+        <textarea id="textInput" class="input" rows="4" placeholder="Type something here…"></textarea>
 
-    <p id="recordHint" class="muted">
-      Press the microphone to start, press again to stop.
-    </p>
+        <label class="field-label" for="textTarget">Voice</label>
+        <select id="textTarget" class="input">
+          <option value="HLXBCncM2sIxwTmiIZg8">Hannibal</option>
+          <option value="kqVT88a5QfII1HNAEPTJ">Decla Sage</option>
+          <option value="jv41DhCf464zw0TI7I1w">Imogen</option>
+          <option value="L1aJrPa7pLJEyYlh3Ilq">Oliver</option>
+        </select>
 
-    <label class="field-label" for="recordTarget">
-      Change my voice into
-    </label>
+        <div class="btn-row">
+          <button id="textBtn" class="btn btn-primary">✨ Generate Voice</button>
+        </div>
 
-    <!-- VOICE OPTIONS -->
-    <select id="recordTarget" class="input">
+        <div id="textStatus" class="status hidden">
+          <div class="spinner"></div>
+          <span class="status-text">Working…</span>
+        </div>
 
-      <option value="voice1">
-        Character Voice A
-      </option>
-
-      <option value="voice2">
-        Character Voice B
-      </option>
-
-      <option value="voice3">
-        Character Voice C
-      </option>
-
-    </select>
-
-    <div class="btn-row">
-
-      <button
-        id="recordConvertBtn"
-        class="btn btn-primary"
-      >
-        🤖 Convert My Voice
-      </button>
-
-    </div>
-
-    <div
-      class="result-card hidden"
-      id="recordResult"
-    >
-
-      <div class="result-head">
-
-        <span class="badge">
-          ✅ Ready
-        </span>
-
-        <button
-          class="icon-btn"
-          data-close="recordResult"
-        >
-          ✕
-        </button>
-
+        <div class="result-card hidden" id="textResult">
+          <div class="result-head">
+            <span class="badge">✅ Ready</span>
+            <button class="icon-btn" data-close="textResult">✕</button>
+          </div>
+          <audio controls></audio>
+          <button class="btn btn-dl">⬇️ Download</button>
+        </div>
       </div>
+    </section>
 
-      <audio controls></audio>
+    <!-- ================= UPLOAD & CONVERT ================= -->
+    <section id="tab-uploadconv" class="panel">
+      <div class="card">
+        <h2>📁 Upload &amp; Convert</h2>
+        <p class="hint">Upload an audio file and convert it into another voice.</p>
 
-      <div class="result-actions">
+        <div id="dropzone" class="dropzone">
+          <p>📁 Drop an audio file here or click to choose</p>
+        </div>
 
-        <button class="btn btn-primary btn-dl">
-          ⬇️ Download
-        </button>
+        <input type="file" id="fileInput" accept="audio/*" hidden>
 
+        <label class="field-label" for="uploadTarget">Change the audio into</label>
+        <select id="uploadTarget" class="input">
+          <option value="HLXBCncM2sIxwTmiIZg8">Hannibal</option>
+          <option value="kqVT88a5QfII1HNAEPTJ">Decla Sage</option>
+          <option value="jv41DhCf464zw0TI7I1w">Imogen</option>
+          <option value="L1aJrPa7pLJEyYlh3Ilq">Oliver</option>
+        </select>
+
+        <div class="btn-row">
+          <button id="uploadConvertBtn" class="btn btn-primary">🤖 Convert Audio</button>
+        </div>
+
+        <div id="uploadStatus" class="status hidden">
+          <div class="spinner"></div>
+          <span class="status-text">Working…</span>
+        </div>
+
+        <div class="result-card hidden" id="uploadResult">
+          <div class="result-head">
+            <span class="badge">✅ Ready</span>
+            <button class="icon-btn" data-close="uploadResult">✕</button>
+          </div>
+          <audio controls></audio>
+          <button class="btn btn-dl">⬇️ Download</button>
+        </div>
       </div>
-
-    </div>
-
-    <div
-      id="recordStatus"
-      class="status hidden"
-    >
-
-      <div class="spinner"></div>
-
-      <div class="status-text">
-        Working…
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-<!-- ================= TEXT TO VOICE ================= -->
-
-<section id="tab-textvoice" class="panel">
-
-  <div class="card">
-
-    <h2>✍️ Text to Voice</h2>
-
-    <p class="hint">
-      Type your message and choose a voice to speak it.
-    </p>
-
-    <label
-      class="field-label"
-      for="textInput"
-    >
-      Your text
-    </label>
-
-    <textarea
-      id="textInput"
-      class="input"
-      rows="4"
-      placeholder="Type something here…"
-    ></textarea>
-
-    <label
-      class="field-label"
-      for="textTarget"
-    >
-      Voice
-    </label>
-
-    <!-- VOICE OPTIONS -->
-    <select id="textTarget" class="input">
-
-      <option value="voice1">
-        Character Voice A
-      </option>
-
-      <option value="voice2">
-        Character Voice B
-      </option>
-
-      <option value="voice3">
-        Character Voice C
-      </option>
-
-    </select>
-
-    <div class="btn-row">
-
-      <button
-        id="textBtn"
-        class="btn btn-primary"
-      >
-        ✨ Generate Voice
-      </button>
-
-    </div>
-
-    <div
-      class="result-card hidden"
-      id="textResult"
-    >
-
-      <div class="result-head">
-
-        <span class="badge">
-          ✅ Ready
-        </span>
-
-        <button
-          class="icon-btn"
-          data-close="textResult"
-        >
-          ✕
-        </button>
-
-      </div>
-
-      <audio controls></audio>
-
-      <div class="result-actions">
-
-        <button class="btn btn-primary btn-dl">
-          ⬇️ Download
-        </button>
-
-      </div>
-
-    </div>
-
-    <div
-      id="textStatus"
-      class="status hidden"
-    >
-
-      <div class="spinner"></div>
-
-      <div class="status-text">
-        Working…
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-<!-- ================= UPLOAD & CONVERT ================= -->
-
-<section id="tab-uploadconv" class="panel">
-
-  <div class="card">
-
-    <h2>📁 Upload &amp; Convert</h2>
-
-    <p class="hint">
-      Upload an audio file, choose the voice you want, then convert.
-    </p>
-
-    <div id="dropzone">
-
-      <span class="dz-icon">
-        📂
-      </span>
-
-      <p>
-        <strong>Click to browse</strong>
-        or drag &amp; drop an audio file
-      </p>
-
-      <p class="tiny muted">
-        Works best with short clips (seconds–~2 min)
-      </p>
-
-    </div>
-
-    <input
-      type="file"
-      id="fileInput"
-      accept="audio/*"
-      hidden
-    >
-
-    <label
-      class="field-label"
-      for="uploadTarget"
-    >
-      Change the audio into
-    </label>
-
-    <!-- VOICE OPTIONS -->
-    <select id="uploadTarget" class="input">
-
-      <option value="voice1">
-        Character Voice A
-      </option>
-
-      <option value="voice2">
-        Character Voice B
-      </option>
-
-      <option value="voice3">
-        Character Voice C
-      </option>
-
-    </select>
-
-    <div class="btn-row">
-
-      <button
-        id="uploadConvertBtn"
-        class="btn btn-primary"
-      >
-        🤖 Convert Audio
-      </button>
-
-    </div>
-
-    <div
-      class="result-card hidden"
-      id="uploadResult"
-    >
-
-      <div class="result-head">
-
-        <span class="badge">
-          ✅ Ready
-        </span>
-
-        <button
-          class="icon-btn"
-          data-close="uploadResult"
-        >
-          ✕
-        </button>
-
-      </div>
-
-      <audio controls></audio>
-
-      <div class="result-actions">
-
-        <button class="btn btn-primary btn-dl">
-          ⬇️ Download
-        </button>
-
-      </div>
-
-    </div>
-
-    <div
-      id="uploadStatus"
-      class="status hidden"
-    >
-
-      <div class="spinner"></div>
-
-      <div class="status-text">
-        Working…
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
-
+    </section>
 
   </main>
 
   <div id="toasts"></div>
-
   <script src="app.js"></script>
-
 </body>
 </html>
