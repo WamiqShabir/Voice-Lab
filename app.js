@@ -30,7 +30,7 @@ function setStatus(id, on, text) {
 }
 
 /* ---------- result cards ---------- */
-function showResult(id, blob, name, revokeExtras = []) {
+function showResult(id, blob, name) {
   const box = $(id);
   box.classList.remove('hidden');
   const audio = box.querySelector('audio');
@@ -58,114 +58,91 @@ function goTab(name) {
 }
 $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
-/* =====================================================================
-   AI ENGINE PLACEHOLDERS
-   These do NOT do real AI yet. When you're ready, replace the body of
-   each one with your own AI call (on your other PC) and the page will
-   wire it up automatically. Keep the signature so the rest works.
-   ===================================================================== */
-
 /* ==========================================================
-   VOICE LAB AI BACKEND
+   ELEVENLABS AI BACKEND
    ========================================================== */
 
-const API_URL = 'https://voice-lab-api.onrender.com';
+// ⚠️ PASTE YOUR NEW API KEY HERE
+const ELEVENLABS_API_KEY = 'YOUR_NEW_API_KEY_HERE';
 
-
-/* ----------------------------------------------------------
-   Audio → authorized target voice
-   ---------------------------------------------------------- */
-
-async function aiConvertVoice(audioBlob, targetVoice) {
+/* Audio → target voice (Speech-to-Speech) */
+async function aiConvertVoice(audioBlob, voiceId) {
+  if (!ELEVENLABS_API_KEY || ELEVENLABS_API_KEY === 'YOUR_NEW_API_KEY_HERE') {
+    throw new Error('Please put your ElevenLabs API key in app.js first.');
+  }
 
   const formData = new FormData();
-
-  formData.append(
-    'audio',
-    audioBlob,
-    'voice-input.webm'
-  );
-
-  formData.append(
-    'target_voice',
-    targetVoice
-  );
+  formData.append('audio', audioBlob, 'input.webm');
+  formData.append('model_id', 'eleven_multilingual_sts_v2');
 
   const response = await fetch(
-    `${API_URL}/api/convert`,
+    `https://api.elevenlabs.io/v1/speech-to-speech/${voiceId}`,
     {
       method: 'POST',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Accept': 'audio/mpeg'
+      },
       body: formData
     }
   );
 
   if (!response.ok) {
-
     let message = 'Voice conversion failed.';
-
     try {
-      const error = await response.json();
-
-      if (error.detail) {
-        message = error.detail;
-      }
-
-    } catch (_) {}
-
+      const err = await response.json();
+      message = err.detail?.message || err.detail || JSON.stringify(err) || message;
+    } catch (_) {
+      message = `HTTP ${response.status}`;
+    }
     throw new Error(message);
   }
 
-  const data = await response.blob();
-
-  return data;
+  return await response.blob();
 }
 
-
-/* ----------------------------------------------------------
-   Text → authorized target voice
-   ---------------------------------------------------------- */
-
-async function aiTextToVoice(text, targetVoice) {
+/* Text → target voice (Text-to-Speech) */
+async function aiTextToVoice(text, voiceId) {
+  if (!ELEVENLABS_API_KEY || ELEVENLABS_API_KEY === 'YOUR_NEW_API_KEY_HERE') {
+    throw new Error('Please put your ElevenLabs API key in app.js first.');
+  }
 
   const response = await fetch(
-    `${API_URL}/api/text-to-voice`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
     {
       method: 'POST',
-
       headers: {
-        'Content-Type': 'application/json'
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg'
       },
-
       body: JSON.stringify({
         text: text,
-        target_voice: targetVoice
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
       })
     }
   );
 
   if (!response.ok) {
-
     let message = 'Text-to-speech failed.';
-
     try {
-      const error = await response.json();
-
-      if (error.detail) {
-        message = error.detail;
-      }
-
-    } catch (_) {}
-
+      const err = await response.json();
+      message = err.detail?.message || err.detail || JSON.stringify(err) || message;
+    } catch (_) {
+      message = `HTTP ${response.status}`;
+    }
     throw new Error(message);
   }
 
-  const data = await response.blob();
-
-  return data;
+  return await response.blob();
 }
 
 function notConnected() {
-  toast('⚠️ AI engine not connected yet — coming soon (we wire it up together later).', 'error');
+  toast('⚠️ AI engine not connected — check your API key in app.js.', 'error');
 }
 
 /* =====================================================================
@@ -187,7 +164,6 @@ $('#recordBtn').addEventListener('click', async () => {
     recordStream.getTracks().forEach(t => t.stop());
     currentRecordedBlob = blob;
     currentRecordedName = 'recording_' + Date.now() + '.webm';
-    // show what we recorded immediately (downloadable + preview)
     showResult('recordResult', blob, currentRecordedName);
     $('#recordHint').textContent = '✅ Done! Preview below — you can download it or convert it.';
     toast('🎤 Recording saved');
@@ -236,23 +212,18 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   setStatus('#recordStatus', true, '🎛️ AI is converting your voice…');
   let out;
 
-try {
-  out = await aiConvertVoice(currentRecordedBlob, target);
-} catch (error) {
-  setStatus('#recordStatus', false);
-  setBusy(btn, false);
-
-  toast(
-    '❌ ' + (error.message || 'Voice conversion failed.'),
-    'error'
-  );
-
-  return;
-} // ADD AI HERE
+  try {
+    out = await aiConvertVoice(currentRecordedBlob, target);
+  } catch (error) {
+    setStatus('#recordStatus', false);
+    setBusy(btn, false);
+    toast('❌ ' + (error.message || 'Voice conversion failed.'), 'error');
+    return;
+  }
   setStatus('#recordStatus', false);
   setBusy(btn, false);
   if (!out) return notConnected();
-  showResult('recordResult', out, 'recording_' + Date.now() + '.wav');
+  showResult('recordResult', out, 'recording_' + Date.now() + '.mp3');
   toast('🤖 Voice converted!', 'ok');
 });
 
@@ -266,21 +237,16 @@ $('#textBtn').addEventListener('click', async () => {
   const btn = $('#textBtn');
   setBusy(btn, true);
   setStatus('#textStatus', true, '🎛️ AI is writing your line…');
- let out;
+  let out;
 
-try {
-  out = await aiTextToVoice(text, target);
-} catch (error) {
-  setStatus('#textStatus', false);
-  setBusy(btn, false);
-
-  toast(
-    '❌ ' + (error.message || 'Voice generation failed.'),
-    'error'
-  );
-
-  return;
-} // ADD AI HERE
+  try {
+    out = await aiTextToVoice(text, target);
+  } catch (error) {
+    setStatus('#textStatus', false);
+    setBusy(btn, false);
+    toast('❌ ' + (error.message || 'Voice generation failed.'), 'error');
+    return;
+  }
   setStatus('#textStatus', false);
   setBusy(btn, false);
   if (!out) return notConnected();
@@ -306,7 +272,7 @@ function handleFile(file) {
   if (!file.type.startsWith('audio')) return toast('⚠️ That\'s not an audio file.', 'error');
   uploadedBlob = file;
   uploadedName = 'upload_' + Date.now() + '.' + (file.name.split('.').pop() || 'mp3');
-  showResult('uploadResult', file, uploadedName);   // downloadable right away
+  showResult('uploadResult', file, uploadedName);
   toast('📂 Audio loaded — ' + file.name, 'ok');
 }
 
@@ -318,23 +284,19 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   setStatus('#uploadStatus', true, '🎛️ AI is converting your audio…');
   let out;
 
-try {
-  out = await aiConvertVoice(currentRecordedBlob, target);
-} catch (error) {
-  setStatus('#recordStatus', false);
-  setBusy(btn, false);
+  try {
+    out = await aiConvertVoice(uploadedBlob, target);
+  } catch (error) {
+    setStatus('#uploadStatus', false);
+    setBusy(btn, false);
+    toast('❌ ' + (error.message || 'Voice conversion failed.'), 'error');
+    return;
+  }
 
-  toast(
-    '❌ ' + (error.message || 'Voice conversion failed.'),
-    'error'
-  );
-
-  return;
-} // ADD AI HERE
   setStatus('#uploadStatus', false);
   setBusy(btn, false);
   if (!out) return notConnected();
-  showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
+  showResult('uploadResult', out, 'converted_' + Date.now() + '.mp3');
   toast('🤖 Audio converted!', 'ok');
 });
 
