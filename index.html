@@ -21,12 +21,11 @@
 
   <header class="site-header">
     <div class="logo">🎙️ Voice<span>Lab</span></div>
-    <p class="tagline">Record · Type · Upload → convert to another voice (Free HF Space)</p>
+    <p class="tagline">Record · Upload → convert using Applio (your PC)</p>
   </header>
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="recordrec">🎤 Record & Convert</button>
-    <button class="tab" data-tab="textvoice">✍️ Text to Voice</button>
     <button class="tab" data-tab="uploadconv">📁 Upload & Convert</button>
   </nav>
 
@@ -36,7 +35,7 @@
     <section id="tab-recordrec" class="panel active">
       <div class="card">
         <h2>🎤 Record & Convert</h2>
-        <p class="hint">Record your voice then convert it using the free public Space.</p>
+        <p class="hint">Record your voice and convert it with Applio running on the host PC.</p>
 
         <div class="record-wrap">
           <button id="recordBtn" class="record-btn"><span class="mic">🎙️</span></button>
@@ -51,7 +50,7 @@
 
         <div id="recordStatus" class="status hidden">
           <div class="spinner"></div>
-          <span class="status-text">Working… (may take time)</span>
+          <span class="status-text">Sending to Applio… please wait</span>
         </div>
 
         <div class="result-card hidden" id="recordResult">
@@ -65,35 +64,11 @@
       </div>
     </section>
 
-    <!-- TEXT -->
-    <section id="tab-textvoice" class="panel">
-      <div class="card">
-        <h2>✍️ Text to Voice</h2>
-        <p class="hint">This free Space is mainly for voice conversion. Text-to-speech is limited.</p>
-        <textarea id="textInput" class="input" rows="4" placeholder="Type something…"></textarea>
-        <div class="btn-row">
-          <button id="textBtn" class="btn btn-primary">✨ Try Generate</button>
-        </div>
-        <div id="textStatus" class="status hidden">
-          <div class="spinner"></div>
-          <span class="status-text">Working…</span>
-        </div>
-        <div class="result-card hidden" id="textResult">
-          <div class="result-head">
-            <span class="badge">✅ Ready</span>
-            <button class="icon-btn" data-close="textResult">✕</button>
-          </div>
-          <audio controls></audio>
-          <button class="btn btn-dl">⬇️ Download</button>
-        </div>
-      </div>
-    </section>
-
     <!-- UPLOAD -->
     <section id="tab-uploadconv" class="panel">
       <div class="card">
         <h2>📁 Upload & Convert</h2>
-        <p class="hint">Upload an audio file and convert it.</p>
+        <p class="hint">Upload an audio file and convert it with Applio.</p>
 
         <div id="dropzone" class="dropzone">
           <p>📁 Drop an audio file here or click to choose</p>
@@ -106,7 +81,7 @@
 
         <div id="uploadStatus" class="status hidden">
           <div class="spinner"></div>
-          <span class="status-text">Working… (may take time)</span>
+          <span class="status-text">Sending to Applio… please wait</span>
         </div>
 
         <div class="result-card hidden" id="uploadResult">
