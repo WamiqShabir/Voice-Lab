@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Connected to Applio ================= */
+/* ================= Voice Lab — Applio Connected ================= */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -57,35 +57,37 @@ function goTab(name) {
 $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
 /* ==========================================================
-   CONNECT TO YOUR PUBLIC APPLIO
+   APPLIO CONNECTION
    ========================================================== */
 const APPLIO_URL = "https://228a6c783f2fc7a48a.gradio.live";
 
 async function getClient() {
-  if (!window.GradioClient) {
-    throw new Error("Gradio client not loaded. Refresh the page.");
-  }
+  if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
   return await window.GradioClient.connect(APPLIO_URL);
 }
 
-async function aiConvertVoice(audioBlob) {
+async function aiConvertVoice(audioBlob, modelName) {
   toast("Connecting to Applio…", "info");
-
   const client = await getClient();
   const file = await window.handle_file(audioBlob);
 
-  // Try common Applio inference endpoints
   let result;
   try {
-    result = await client.predict("/infer", { input_audio: file });
+    result = await client.predict("/infer", {
+      input_audio: file,
+      pth_path: modelName
+    });
   } catch (e1) {
     try {
-      result = await client.predict("/predict", { input_audio: file });
+      result = await client.predict("/predict", {
+        input_audio: file,
+        pth_path: modelName
+      });
     } catch (e2) {
       try {
-        result = await client.predict("/inference", [file]);
+        result = await client.predict("/inference", [file, modelName]);
       } catch (e3) {
-        throw new Error("Could not call Applio. Make sure it is still running and the public link is active.");
+        throw new Error("Could not reach Applio. Make sure it is still running and the public link is active.");
       }
     }
   }
@@ -123,7 +125,7 @@ $('#recordBtn').addEventListener('click', async () => {
     recordStream.getTracks().forEach(t => t.stop());
     currentRecordedBlob = blob;
     showResult('recordResult', blob, 'recording.webm');
-    $('#recordHint').textContent = '✅ Recording ready — click Convert';
+    $('#recordHint').textContent = '✅ Recording ready — choose voice and click Convert';
     toast('🎤 Recording saved');
   };
   mediaRecorder.start();
@@ -164,16 +166,44 @@ function startMeter(stream) {
 $('#recordConvertBtn').addEventListener('click', async () => {
   if (!currentRecordedBlob) return toast('⚠️ Record something first', 'error');
   const btn = $('#recordConvertBtn');
+  const model = $('#recordTarget').value;
   setBusy(btn, true);
-  setStatus('#recordStatus', true, '🎛️ Sending to Applio… please wait');
+  setStatus('#recordStatus', true, '🎛️ Converting with Applio…');
   try {
-    const out = await aiConvertVoice(currentRecordedBlob);
+    const out = await aiConvertVoice(currentRecordedBlob, model);
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
     toast('❌ ' + (err.message || 'Conversion failed'), 'error');
   }
   setStatus('#recordStatus', false);
+  setBusy(btn, false);
+});
+
+/* =====================================================================
+   TEXT TO VOICE
+   ===================================================================== */
+$('#textBtn').addEventListener('click', async () => {
+  const text = $('#textInput').value.trim();
+  if (!text) return toast('⚠️ Type some text first', 'error');
+
+  const btn = $('#textBtn');
+  const model = $('#textTarget').value;
+  setBusy(btn, true);
+  setStatus('#textStatus', true, '🎛️ Generating speech…');
+
+  try {
+    // Step 1: Use browser speech synthesis (free)
+    // Note: High quality TTS is limited without a paid service
+    toast('Text-to-Voice currently uses basic browser speech + Applio. Quality is limited.', 'info');
+
+    // For now we show a clear message because capturing browser TTS as a file is unreliable
+    throw new Error('Full Text-to-Voice through Applio needs extra setup. Use Record or Upload for best results right now.');
+  } catch (err) {
+    toast('❌ ' + (err.message || 'Failed'), 'error');
+  }
+
+  setStatus('#textStatus', false);
   setBusy(btn, false);
 });
 
@@ -201,10 +231,11 @@ function handleFile(file) {
 $('#uploadConvertBtn').addEventListener('click', async () => {
   if (!uploadedBlob) return toast('⚠️ Upload an audio file first', 'error');
   const btn = $('#uploadConvertBtn');
+  const model = $('#uploadTarget').value;
   setBusy(btn, true);
-  setStatus('#uploadStatus', true, '🎛️ Sending to Applio… please wait');
+  setStatus('#uploadStatus', true, '🎛️ Converting with Applio…');
   try {
-    const out = await aiConvertVoice(uploadedBlob);
+    const out = await aiConvertVoice(uploadedBlob, model);
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
