@@ -21,11 +21,12 @@
 
   <header class="site-header">
     <div class="logo">🎙️ Voice<span>Lab</span></div>
-    <p class="tagline">Record · Upload → convert using Applio (your PC)</p>
+    <p class="tagline">Record · Type · Upload → convert with Applio</p>
   </header>
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="recordrec">🎤 Record & Convert</button>
+    <button class="tab" data-tab="textvoice">✍️ Text to Voice</button>
     <button class="tab" data-tab="uploadconv">📁 Upload & Convert</button>
   </nav>
 
@@ -35,7 +36,7 @@
     <section id="tab-recordrec" class="panel active">
       <div class="card">
         <h2>🎤 Record & Convert</h2>
-        <p class="hint">Record your voice and convert it with Applio running on the host PC.</p>
+        <p class="hint">Record your voice, choose a voice, then convert.</p>
 
         <div class="record-wrap">
           <button id="recordBtn" class="record-btn"><span class="mic">🎙️</span></button>
@@ -44,13 +45,19 @@
         </div>
         <p id="recordHint" class="muted">Press the microphone to start/stop.</p>
 
+        <label class="field-label">Convert to</label>
+        <select id="recordTarget" class="input">
+          <option value="model.pth">Victor</option>
+          <!-- Add more voices later -->
+        </select>
+
         <div class="btn-row">
           <button id="recordConvertBtn" class="btn btn-primary">🤖 Convert My Voice</button>
         </div>
 
         <div id="recordStatus" class="status hidden">
           <div class="spinner"></div>
-          <span class="status-text">Sending to Applio… please wait</span>
+          <span class="status-text">Sending to Applio…</span>
         </div>
 
         <div class="result-card hidden" id="recordResult">
@@ -64,16 +71,57 @@
       </div>
     </section>
 
+    <!-- TEXT TO VOICE -->
+    <section id="tab-textvoice" class="panel">
+      <div class="card">
+        <h2>✍️ Text to Voice</h2>
+        <p class="hint">Type text, choose a voice, and convert. (Uses free browser speech first, then Applio)</p>
+
+        <label class="field-label">Your text</label>
+        <textarea id="textInput" class="input" rows="4" placeholder="Type something here…"></textarea>
+
+        <label class="field-label">Voice</label>
+        <select id="textTarget" class="input">
+          <option value="model.pth">Victor</option>
+          <!-- Add more voices later -->
+        </select>
+
+        <div class="btn-row">
+          <button id="textBtn" class="btn btn-primary">✨ Generate Voice</button>
+        </div>
+
+        <div id="textStatus" class="status hidden">
+          <div class="spinner"></div>
+          <span class="status-text">Working…</span>
+        </div>
+
+        <div class="result-card hidden" id="textResult">
+          <div class="result-head">
+            <span class="badge">✅ Ready</span>
+            <button class="icon-btn" data-close="textResult">✕</button>
+          </div>
+          <audio controls></audio>
+          <button class="btn btn-dl">⬇️ Download</button>
+        </div>
+      </div>
+    </section>
+
     <!-- UPLOAD -->
     <section id="tab-uploadconv" class="panel">
       <div class="card">
         <h2>📁 Upload & Convert</h2>
-        <p class="hint">Upload an audio file and convert it with Applio.</p>
+        <p class="hint">Upload an audio file and convert it.</p>
 
         <div id="dropzone" class="dropzone">
           <p>📁 Drop an audio file here or click to choose</p>
         </div>
         <input type="file" id="fileInput" accept="audio/*" hidden>
+
+        <label class="field-label">Convert to</label>
+        <select id="uploadTarget" class="input">
+          <option value="model.pth">Victor</option>
+          <!-- Add more voices later -->
+        </select>
 
         <div class="btn-row">
           <button id="uploadConvertBtn" class="btn btn-primary">🤖 Convert Audio</button>
@@ -81,7 +129,7 @@
 
         <div id="uploadStatus" class="status hidden">
           <div class="spinner"></div>
-          <span class="status-text">Sending to Applio… please wait</span>
+          <span class="status-text">Sending to Applio…</span>
         </div>
 
         <div class="result-card hidden" id="uploadResult">
