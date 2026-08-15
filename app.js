@@ -1,4 +1,4 @@
-/* ================= Voice Lab — app.js (Public HF Space version) ================= */
+/* ================= Voice Lab — Connected to Applio ================= */
 'use strict';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -9,7 +9,7 @@ function toast(msg, type = 'info') {
   t.className = 'toast ' + (type === 'ok' ? 'ok' : type === 'error' ? 'error' : '');
   t.textContent = msg;
   $('#toasts').appendChild(t);
-  setTimeout(() => { t.classList.add('leaving'); setTimeout(() => t.remove(), 320); }, 4000);
+  setTimeout(() => { t.classList.add('leaving'); setTimeout(() => t.remove(), 320); }, 4500);
 }
 
 /* ---------- helpers ---------- */
@@ -57,33 +57,35 @@ function goTab(name) {
 $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
 /* ==========================================================
-   PUBLIC HUGGING FACE SPACE (MeanVC2)
+   CONNECT TO YOUR PUBLIC APPLIO
    ========================================================== */
-const SPACE_ID = "hugging-apps/meanvc2-voice-conversion";
+const APPLIO_URL = "https://228a6c783f2fc7a48a.gradio.live";
 
 async function getClient() {
-  if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
-  return await window.GradioClient.connect(SPACE_ID);
+  if (!window.GradioClient) {
+    throw new Error("Gradio client not loaded. Refresh the page.");
+  }
+  return await window.GradioClient.connect(APPLIO_URL);
 }
 
 async function aiConvertVoice(audioBlob) {
-  toast("Connecting to free Space… this can take a while", "info");
+  toast("Connecting to Applio…", "info");
 
   const client = await getClient();
   const file = await window.handle_file(audioBlob);
 
-  // Try the most common endpoint names
+  // Try common Applio inference endpoints
   let result;
   try {
-    result = await client.predict("/predict", { source_audio: file });
+    result = await client.predict("/infer", { input_audio: file });
   } catch (e1) {
     try {
-      result = await client.predict("/convert", { source_audio: file });
+      result = await client.predict("/predict", { input_audio: file });
     } catch (e2) {
       try {
-        result = await client.predict("/voice_conversion", [file]);
+        result = await client.predict("/inference", [file]);
       } catch (e3) {
-        throw new Error("Could not call the Space. It may be sleeping or the API changed.");
+        throw new Error("Could not call Applio. Make sure it is still running and the public link is active.");
       }
     }
   }
@@ -96,11 +98,7 @@ async function aiConvertVoice(audioBlob) {
   }
   if (output instanceof Blob) return output;
 
-  throw new Error("Unexpected response from the Space");
-}
-
-async function aiTextToVoice(text) {
-  throw new Error("This free Space is mainly for voice conversion, not text-to-speech.");
+  throw new Error("Unexpected response from Applio");
 }
 
 /* =====================================================================
@@ -167,7 +165,7 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   if (!currentRecordedBlob) return toast('⚠️ Record something first', 'error');
   const btn = $('#recordConvertBtn');
   setBusy(btn, true);
-  setStatus('#recordStatus', true, '🎛️ Converting… please wait (can take 30–90s)');
+  setStatus('#recordStatus', true, '🎛️ Sending to Applio… please wait');
   try {
     const out = await aiConvertVoice(currentRecordedBlob);
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
@@ -177,13 +175,6 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   }
   setStatus('#recordStatus', false);
   setBusy(btn, false);
-});
-
-/* =====================================================================
-   TEXT
-   ===================================================================== */
-$('#textBtn').addEventListener('click', async () => {
-  toast('This free Space does not support good text-to-speech. Use Record or Upload instead.', 'error');
 });
 
 /* =====================================================================
@@ -211,7 +202,7 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   if (!uploadedBlob) return toast('⚠️ Upload an audio file first', 'error');
   const btn = $('#uploadConvertBtn');
   setBusy(btn, true);
-  setStatus('#uploadStatus', true, '🎛️ Converting… please wait');
+  setStatus('#uploadStatus', true, '🎛️ Sending to Applio… please wait');
   try {
     const out = await aiConvertVoice(uploadedBlob);
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
