@@ -159,7 +159,7 @@ async function aiConvertVoice(audioBlob, modelName) {
       param_37: 0.4,
       param_38: 1.0,
       param_39: 0.0,
-      param_40: 0,
+      param_40: "0",
       param_41: -6,
       param_42: 0.05,
       param_43: 0,
