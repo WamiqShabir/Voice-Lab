@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Applio Connected ================= */
+/* ================= Voice Lab — Applio Hard Way ================= */
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -13,7 +13,7 @@ function toast(msg, type = 'info') {
   setTimeout(() => {
     t.classList.add('leaving');
     setTimeout(() => t.remove(), 320);
-  }, 4500);
+  }, 5000);
 }
 
 /* ---------- helpers ---------- */
@@ -34,7 +34,7 @@ function setBusy(btn, busy) {
 }
 
 function setStatus(id, on, text) {
-  const el = document.getElementById(id.replace('#', ''));
+  const el = document.getElementById(id);
   if (!el) return;
   el.classList.toggle('hidden', !on);
   if (text) {
@@ -45,10 +45,7 @@ function setStatus(id, on, text) {
 
 function showResult(id, blob, name) {
   const box = document.getElementById(id);
-  if (!box) {
-    console.error('Result box not found:', id);
-    return;
-  }
+  if (!box) return;
   box.classList.remove('hidden');
   const audio = box.querySelector('audio');
   if (audio.dataset.url) URL.revokeObjectURL(audio.dataset.url);
@@ -83,7 +80,7 @@ function goTab(name) {
 $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
 /* ==========================================================
-   APPLIO CONNECTION
+   APPLIO CONNECTION (Hard Way)
    ========================================================== */
 const APPLIO_URL = "https://309cb6d374db505eb9.gradio.live";
 
@@ -95,50 +92,127 @@ async function getClient() {
 }
 
 async function aiConvertVoice(audioBlob, modelName) {
-  toast("Connecting to Applio…", "info");
+  toast("Uploading audio to Applio…", "info");
 
   const client = await getClient();
   const file = await window.handle_file(audioBlob);
 
-  // Try to accept terms first (required by many Applio versions)
+  // Step 1: Upload the audio
+  let uploadResult;
   try {
-    await client.predict("/enforce_terms", { terms: true });
+    uploadResult = await client.predict("/save_to_wav2", {
+      upload_audio: file
+    });
   } catch (e) {
-    // ignore if endpoint not needed
+    console.error("Upload failed:", e);
+    throw new Error("Failed to upload audio to Applio");
   }
 
+  const data = uploadResult.data;
+  const audioPath = Array.isArray(data) ? data[0] : data;
+  const outputPath = Array.isArray(data) && data[1] ? data[1] : "assets\\audios\\output.wav";
+
+  console.log("Uploaded path:", audioPath);
+  toast("Converting voice… this can take a while", "info");
+
+  // Step 2: Convert
   let result;
   try {
-    // This is the most common endpoint in current Applio
-    result = await client.predict("/process_input", {
-      input_audio: file
+    result = await client.predict("/enforce_terms", {
+      terms_accepted: true,
+      param_1: 0,
+      param_2: 0.75,
+      param_3: 1,
+      param_4: 0.5,
+      param_5: "rmvpe",
+      param_6: audioPath,
+      param_7: outputPath,
+      param_8: "logs\\model.pth",
+      param_9: "logs\\model.index",
+      param_10: false,
+      param_11: false,
+      param_12: 1,
+      param_13: false,
+      param_14: 155.0,
+      param_15: false,
+      param_16: 0.5,
+      param_17: "WAV",
+      param_18: "contentvec",
+      param_19: null,
+      param_20: false,
+      param_21: 1.0,
+      param_22: 1.0,
+      param_23: false,
+      param_24: false,
+      param_25: false,
+      param_26: false,
+      param_27: false,
+      param_28: false,
+      param_29: false,
+      param_30: false,
+      param_31: false,
+      param_32: false,
+      param_33: false,
+      param_34: 0.5,
+      param_35: 0.5,
+      param_36: 0.33,
+      param_37: 0.4,
+      param_38: 1.0,
+      param_39: 0.0,
+      param_40: 0,
+      param_41: -6,
+      param_42: 0.05,
+      param_43: 0,
+      param_44: 25,
+      param_45: 1.0,
+      param_46: 0.25,
+      param_47: 7,
+      param_48: 0.0,
+      param_49: 0.5,
+      param_50: 8,
+      param_51: -6,
+      param_52: 0,
+      param_53: 1,
+      param_54: 1.0,
+      param_55: 100,
+      param_56: 0.5,
+      param_57: 0.0,
+      param_58: 0.5,
+      param_59: "0"
     });
-  } catch (err1) {
-    try {
-      result = await client.predict("/process_input", [file]);
-    } catch (err2) {
-      console.error(err2);
-      throw new Error("Could not convert. Make sure a model is selected in Applio Inference tab.");
-    }
+  } catch (e) {
+    console.error("Conversion failed:", e);
+    throw new Error("Conversion failed. See console for details.");
   }
 
   const output = Array.isArray(result.data) ? result.data[0] : result.data;
 
+  // Try to get the audio
   if (typeof output === "string" && (output.startsWith("http") || output.startsWith("data:"))) {
     const res = await fetch(output);
     return await res.blob();
   }
-  if (output instanceof Blob) return output;
 
-  if (Array.isArray(output) && output.length > 0) {
-    const first = output[0];
-    if (typeof first === "string" && first.startsWith("http")) {
-      const res = await fetch(first);
-      return await res.blob();
+  if (typeof output === "string" && output.toLowerCase().includes("audio")) {
+    // Try common Gradio file URLs
+    const possibleUrls = [
+      APPLIO_URL + "/file=" + output,
+      APPLIO_URL + "/file/" + output,
+      output
+    ];
+    for (const url of possibleUrls) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const blob = await res.blob();
+          if (blob.size > 1000) return blob;
+        }
+      } catch (e) {}
     }
   }
 
-  throw new Error("Unexpected response from Applio");
+  // If we can't get the file, tell the user to check Applio
+  throw new Error("Conversion finished. Please check Applio for the result and download it from there.");
 }
 
 /* =====================================================================
@@ -172,7 +246,7 @@ $('#recordBtn').addEventListener('click', async () => {
     recordStream.getTracks().forEach(t => t.stop());
     currentRecordedBlob = blob;
     showResult('recordResult', blob, 'recording.webm');
-    $('#recordHint').textContent = '✅ Recording ready — choose voice and click Convert';
+    $('#recordHint').textContent = '✅ Recording ready — click Convert';
     toast('🎤 Recording saved');
   };
 
@@ -221,7 +295,7 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   const btn = $('#recordConvertBtn');
   const model = $('#recordTarget').value;
   setBusy(btn, true);
-  setStatus('recordStatus', true, '🎛️ Converting with Applio…');
+  setStatus('recordStatus', true, '🎛️ Working with Applio…');
   try {
     const out = await aiConvertVoice(currentRecordedBlob, model);
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
@@ -237,9 +311,7 @@ $('#recordConvertBtn').addEventListener('click', async () => {
    TEXT TO VOICE (limited)
    ===================================================================== */
 $('#textBtn').addEventListener('click', async () => {
-  const text = $('#textInput').value.trim();
-  if (!text) return toast('⚠️ Type some text first', 'error');
-  toast('Text-to-Voice is limited right now. Please use Record or Upload for best results.', 'error');
+  toast('Text-to-Voice is limited. Please use Record or Upload.', 'error');
 });
 
 /* =====================================================================
@@ -271,7 +343,7 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   const btn = $('#uploadConvertBtn');
   const model = $('#uploadTarget').value;
   setBusy(btn, true);
-  setStatus('uploadStatus', true, '🎛️ Converting with Applio…');
+  setStatus('uploadStatus', true, '🎛️ Working with Applio…');
   try {
     const out = await aiConvertVoice(uploadedBlob, model);
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
