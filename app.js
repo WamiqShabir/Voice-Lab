@@ -80,7 +80,7 @@ function goTab(name) {
 $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
 /* ==========================================================
-   APPLIO CONNECTION (Hard Way)
+   APPLIO CONNECTION
    ========================================================== */
 const APPLIO_URL = "https://309cb6d374db505eb9.gradio.live";
 
@@ -113,7 +113,7 @@ async function aiConvertVoice(audioBlob, modelName) {
   const outputPath = Array.isArray(data) && data[1] ? data[1] : "assets\\audios\\output.wav";
 
   console.log("Uploaded path:", audioPath);
-  toast("Converting voice… this can take a while", "info");
+  toast("Converting voice… please wait", "info");
 
   // Step 2: Convert
   let result;
@@ -187,32 +187,12 @@ async function aiConvertVoice(audioBlob, modelName) {
 
   const output = Array.isArray(result.data) ? result.data[0] : result.data;
 
-  // Try to get the audio
   if (typeof output === "string" && (output.startsWith("http") || output.startsWith("data:"))) {
     const res = await fetch(output);
     return await res.blob();
   }
 
-  if (typeof output === "string" && output.toLowerCase().includes("audio")) {
-    // Try common Gradio file URLs
-    const possibleUrls = [
-      APPLIO_URL + "/file=" + output,
-      APPLIO_URL + "/file/" + output,
-      output
-    ];
-    for (const url of possibleUrls) {
-      try {
-        const res = await fetch(url);
-        if (res.ok) {
-          const blob = await res.blob();
-          if (blob.size > 1000) return blob;
-        }
-      } catch (e) {}
-    }
-  }
-
-  // If we can't get the file, tell the user to check Applio
-  throw new Error("Conversion finished. Please check Applio for the result and download it from there.");
+  throw new Error("Conversion may have finished. Please check Applio for the output audio.");
 }
 
 /* =====================================================================
