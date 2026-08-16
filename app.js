@@ -97,7 +97,7 @@ async function aiConvertVoice(audioBlob, modelName) {
   const client = await getClient();
   const file = await window.handle_file(audioBlob);
 
-  // Step 1: Upload the audio
+  // Step 1: Upload
   let uploadResult;
   try {
     uploadResult = await client.predict("/save_to_wav2", {
@@ -115,71 +115,71 @@ async function aiConvertVoice(audioBlob, modelName) {
   console.log("Uploaded path:", audioPath);
   toast("Converting voice… please wait", "info");
 
-  // Step 2: Convert
+  // Step 2: Convert using positional arguments
   let result;
   try {
-    result = await client.predict("/enforce_terms", {
-      terms_accepted: true,
-      param_1: 0,
-      param_2: 0.75,
-      param_3: 1,
-      param_4: 0.5,
-      param_5: "rmvpe",
-      param_6: audioPath,
-      param_7: outputPath,
-      param_8: "logs\\model.pth",
-      param_9: "logs\\model.index",
-      param_10: false,
-      param_11: false,
-      param_12: 1,
-      param_13: false,
-      param_14: 155.0,
-      param_15: false,
-      param_16: 0.5,
-      param_17: "WAV",
-      param_18: "contentvec",
-      param_19: null,
-      param_20: false,
-      param_21: 1.0,
-      param_22: 1.0,
-      param_23: false,
-      param_24: false,
-      param_25: false,
-      param_26: false,
-      param_27: false,
-      param_28: false,
-      param_29: false,
-      param_30: false,
-      param_31: false,
-      param_32: false,
-      param_33: false,
-      param_34: 0.5,
-      param_35: 0.5,
-      param_36: 0.33,
-      param_37: 0.4,
-      param_38: 1.0,
-      param_39: 0.0,
-      param_40: 0,
-      param_41: -6,
-      param_42: 0.05,
-      param_43: 0,
-      param_44: 25,
-      param_45: 1.0,
-      param_46: 0.25,
-      param_47: 7,
-      param_48: 0.0,
-      param_49: 0.5,
-      param_50: 8,
-      param_51: -6,
-      param_52: 0,
-      param_53: 1,
-      param_54: 1.0,
-      param_55: 100,
-      param_56: 0.5,
-      param_57: 0.0,
-      param_58: 0.5,
-      param_59: 0
-    });
+    result = await client.predict("/enforce_terms", [
+      true,                    // 0  terms_accepted
+      0,                       // 1  pitch
+      0.75,                    // 2  index_rate
+      1,                       // 3  volume envelope
+      0.5,                     // 4  protect
+      "rmvpe",                 // 5  f0 method
+      audioPath,               // 6  select audio
+      outputPath,              // 7  output path
+      "logs\\model.pth",       // 8  voice model
+      "logs\\model.index",     // 9  index file
+      false,                   // 10 split audio
+      false,                   // 11 autotune
+      1,                       // 12 autotune strength
+      false,                   // 13 proposed pitch
+      155.0,                   // 14 proposed pitch threshold
+      false,                   // 15 clean audio
+      0.5,                     // 16 clean strength
+      "WAV",                   // 17 export format
+      "contentvec",            // 18 embedder
+      null,                    // 19 custom embedder
+      false,                   // 20 formant shifting
+      1.0,                     // 21 quefrency
+      1.0,                     // 22 timbre
+      false,                   // 23 post-process
+      false,                   // 24 reverb
+      false,                   // 25 pitch shift
+      false,                   // 26 limiter
+      false,                   // 27 gain
+      false,                   // 28 distortion
+      false,                   // 29 chorus
+      false,                   // 30 bitcrush
+      false,                   // 31 clipping
+      false,                   // 32 compressor
+      false,                   // 33 delay
+      0.5,                     // 34
+      0.5,                     // 35
+      0.33,                    // 36
+      0.4,                     // 37
+      1.0,                     // 38
+      0.0,                     // 39
+      0,                       // 40
+      -6,                      // 41
+      0.05,                    // 42
+      0,                       // 43
+      25,                      // 44
+      1.0,                     // 45
+      0.25,                    // 46
+      7,                       // 47
+      0.0,                     // 48
+      0.5,                     // 49
+      8,                       // 50
+      -6,                      // 51
+      0,                       // 52
+      1,                       // 53
+      1.0,                     // 54
+      100,                     // 55
+      0.5,                     // 56
+      0.0,                     // 57
+      0.5,                     // 58
+      "0"                      // 59
+    ]);
   } catch (e) {
     console.error("Conversion failed:", e);
     throw new Error("Conversion failed. See console for details.");
