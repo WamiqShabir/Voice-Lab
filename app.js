@@ -1,5 +1,6 @@
 /* ================= Voice Lab — Applio Connected ================= */
 'use strict';
+
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
@@ -9,7 +10,10 @@ function toast(msg, type = 'info') {
   t.className = 'toast ' + (type === 'ok' ? 'ok' : type === 'error' ? 'error' : '');
   t.textContent = msg;
   $('#toasts').appendChild(t);
-  setTimeout(() => { t.classList.add('leaving'); setTimeout(() => t.remove(), 320); }, 4500);
+  setTimeout(() => {
+    t.classList.add('leaving');
+    setTimeout(() => t.remove(), 320);
+  }, 4500);
 }
 
 /* ---------- helpers ---------- */
@@ -23,31 +27,53 @@ function saveBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   toast('✅ Saved: ' + name, 'ok');
 }
-function setBusy(btn, busy) { btn.disabled = busy; btn.classList.toggle('busy', busy); }
+
+function setBusy(btn, busy) {
+  btn.disabled = busy;
+  btn.classList.toggle('busy', busy);
+}
+
 function setStatus(id, on, text) {
-  $(id).classList.toggle('hidden', !on);
-  if (text) $(id).querySelector('.status-text').textContent = text;
+  const el = document.getElementById(id.replace('#', ''));
+  if (!el) return;
+  el.classList.toggle('hidden', !on);
+  if (text) {
+    const span = el.querySelector('.status-text');
+    if (span) span.textContent = text;
+  }
 }
 
 function showResult(id, blob, name) {
-  const box = $(id);
+  const box = document.getElementById(id);
+  if (!box) {
+    console.error('Result box not found:', id);
+    return;
+  }
   box.classList.remove('hidden');
   const audio = box.querySelector('audio');
   if (audio.dataset.url) URL.revokeObjectURL(audio.dataset.url);
   const url = URL.createObjectURL(blob);
   audio.src = url;
   audio.dataset.url = url;
-  box.querySelector('.btn-dl').onclick = () => saveBlob(blob, name);
+  const dlBtn = box.querySelector('.btn-dl');
+  if (dlBtn) dlBtn.onclick = () => saveBlob(blob, name);
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
 function hideResult(id) {
-  const box = $(id);
+  const box = document.getElementById(id);
+  if (!box) return;
   box.classList.add('hidden');
   const a = box.querySelector('audio');
-  a.pause();
-  if (a.dataset.url) URL.revokeObjectURL(a.dataset.url);
+  if (a) {
+    a.pause();
+    if (a.dataset.url) URL.revokeObjectURL(a.dataset.url);
+  }
 }
-$$('.icon-btn').forEach(b => b.addEventListener('click', () => hideResult(b.dataset.close)));
+
+$$('.icon-btn').forEach(b => {
+  b.addEventListener('click', () => hideResult(b.dataset.close));
+});
 
 /* ---------- tabs ---------- */
 function goTab(name) {
@@ -59,36 +85,40 @@ $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.
 /* ==========================================================
    APPLIO CONNECTION
    ========================================================== */
-const APPLIO_URL = "https://14c87e87506d18933f.gradio.live";
+const APPLIO_URL = "https://309cb6d374db505eb9.gradio.live";
 
 async function getClient() {
-  if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
+  if (!window.GradioClient) {
+    throw new Error("Gradio client not loaded. Refresh the page.");
+  }
   return await window.GradioClient.connect(APPLIO_URL);
 }
 
 async function aiConvertVoice(audioBlob, modelName) {
   toast("Connecting to Applio…", "info");
+
   const client = await getClient();
   const file = await window.handle_file(audioBlob);
 
+  // Try to accept terms first (required by many Applio versions)
+  try {
+    await client.predict("/enforce_terms", { terms: true });
+  } catch (e) {
+    // ignore if endpoint not needed
+  }
+
   let result;
   try {
-    result = await client.predict("/infer", {
-      input_audio: file,
-      pth_path: modelName
+    // This is the most common endpoint in current Applio
+    result = await client.predict("/process_input", {
+      input_audio: file
     });
-  } catch (e1) {
+  } catch (err1) {
     try {
-      result = await client.predict("/predict", {
-        input_audio: file,
-        pth_path: modelName
-      });
-    } catch (e2) {
-      try {
-        result = await client.predict("/inference", [file, modelName]);
-      } catch (e3) {
-        throw new Error("Could not reach Applio. Make sure it is still running and the public link is active.");
-      }
+      result = await client.predict("/process_input", [file]);
+    } catch (err2) {
+      console.error(err2);
+      throw new Error("Could not convert. Make sure a model is selected in Applio Inference tab.");
     }
   }
 
@@ -99,6 +129,14 @@ async function aiConvertVoice(audioBlob, modelName) {
     return await res.blob();
   }
   if (output instanceof Blob) return output;
+
+  if (Array.isArray(output) && output.length > 0) {
+    const first = output[0];
+    if (typeof first === "string" && first.startsWith("http")) {
+      const res = await fetch(first);
+      return await res.blob();
+    }
+  }
 
   throw new Error("Unexpected response from Applio");
 }
@@ -111,15 +149,24 @@ let currentRecordedBlob = null;
 
 $('#recordBtn').addEventListener('click', async () => {
   const btn = $('#recordBtn');
-  if (mediaRecorder && mediaRecorder.state === 'recording') { stopRecording(); return; }
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    stopRecording();
+    return;
+  }
+
   try {
     recordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {
     return toast('❌ Microphone blocked', 'error');
   }
+
   recordChunks = [];
   mediaRecorder = new MediaRecorder(recordStream);
-  mediaRecorder.ondataavailable = e => { if (e.data.size) recordChunks.push(e.data); };
+
+  mediaRecorder.ondataavailable = e => {
+    if (e.data.size) recordChunks.push(e.data);
+  };
+
   mediaRecorder.onstop = () => {
     const blob = new Blob(recordChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
     recordStream.getTracks().forEach(t => t.stop());
@@ -128,6 +175,7 @@ $('#recordBtn').addEventListener('click', async () => {
     $('#recordHint').textContent = '✅ Recording ready — choose voice and click Convert';
     toast('🎤 Recording saved');
   };
+
   mediaRecorder.start();
   btn.classList.add('recording');
   $('#recordHint').textContent = '🔴 Recording… press again to stop';
@@ -140,13 +188,17 @@ $('#recordBtn').addEventListener('click', async () => {
 });
 
 function stopRecording() {
-  mediaRecorder.stop();
+  if (mediaRecorder) mediaRecorder.stop();
   $('#recordBtn').classList.remove('recording');
   clearInterval(recordTimer);
   cancelAnimationFrame(meterRAF);
-  if (recordCtx) { recordCtx.close(); recordCtx = null; }
+  if (recordCtx) {
+    recordCtx.close();
+    recordCtx = null;
+  }
   $('#meterFill').style.width = '0%';
 }
+
 function startMeter(stream) {
   recordCtx = new AudioContext();
   const src = recordCtx.createMediaStreamSource(stream);
@@ -156,7 +208,8 @@ function startMeter(stream) {
   const data = new Uint8Array(an.frequencyBinCount);
   const draw = () => {
     an.getByteFrequencyData(data);
-    let sum = 0; for (let i = 0; i < data.length; i++) sum += data[i];
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i];
     $('#meterFill').style.width = (sum / data.length / 255 * 100).toFixed(1) + '%';
     meterRAF = requestAnimationFrame(draw);
   };
@@ -168,7 +221,7 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   const btn = $('#recordConvertBtn');
   const model = $('#recordTarget').value;
   setBusy(btn, true);
-  setStatus('#recordStatus', true, '🎛️ Converting with Applio…');
+  setStatus('recordStatus', true, '🎛️ Converting with Applio…');
   try {
     const out = await aiConvertVoice(currentRecordedBlob, model);
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
@@ -176,35 +229,17 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   } catch (err) {
     toast('❌ ' + (err.message || 'Conversion failed'), 'error');
   }
-  setStatus('#recordStatus', false);
+  setStatus('recordStatus', false);
   setBusy(btn, false);
 });
 
 /* =====================================================================
-   TEXT TO VOICE
+   TEXT TO VOICE (limited)
    ===================================================================== */
 $('#textBtn').addEventListener('click', async () => {
   const text = $('#textInput').value.trim();
   if (!text) return toast('⚠️ Type some text first', 'error');
-
-  const btn = $('#textBtn');
-  const model = $('#textTarget').value;
-  setBusy(btn, true);
-  setStatus('#textStatus', true, '🎛️ Generating speech…');
-
-  try {
-    // Step 1: Use browser speech synthesis (free)
-    // Note: High quality TTS is limited without a paid service
-    toast('Text-to-Voice currently uses basic browser speech + Applio. Quality is limited.', 'info');
-
-    // For now we show a clear message because capturing browser TTS as a file is unreliable
-    throw new Error('Full Text-to-Voice through Applio needs extra setup. Use Record or Upload for best results right now.');
-  } catch (err) {
-    toast('❌ ' + (err.message || 'Failed'), 'error');
-  }
-
-  setStatus('#textStatus', false);
-  setBusy(btn, false);
+  toast('Text-to-Voice is limited right now. Please use Record or Upload for best results.', 'error');
 });
 
 /* =====================================================================
@@ -215,10 +250,13 @@ dz.addEventListener('click', () => $('#fileInput').click());
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
 dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('drag');
+  e.preventDefault();
+  dz.classList.remove('drag');
   if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
 });
-$('#fileInput').addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+$('#fileInput').addEventListener('change', e => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
 
 let uploadedBlob = null;
 function handleFile(file) {
@@ -233,7 +271,7 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   const btn = $('#uploadConvertBtn');
   const model = $('#uploadTarget').value;
   setBusy(btn, true);
-  setStatus('#uploadStatus', true, '🎛️ Converting with Applio…');
+  setStatus('uploadStatus', true, '🎛️ Converting with Applio…');
   try {
     const out = await aiConvertVoice(uploadedBlob, model);
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
@@ -241,6 +279,6 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   } catch (err) {
     toast('❌ ' + (err.message || 'Conversion failed'), 'error');
   }
-  setStatus('#uploadStatus', false);
+  setStatus('uploadStatus', false);
   setBusy(btn, false);
 });
