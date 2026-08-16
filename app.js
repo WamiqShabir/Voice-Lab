@@ -97,7 +97,7 @@ async function aiConvertVoice(audioBlob, modelName) {
   const client = await getClient();
   const file = await window.handle_file(audioBlob);
 
-  // Step 1: Upload
+  // Step 1: Upload audio
   let uploadResult;
   try {
     uploadResult = await client.predict("/save_to_wav2", {
@@ -109,80 +109,80 @@ async function aiConvertVoice(audioBlob, modelName) {
   }
 
   const data = uploadResult.data;
-  const audioPath = Array.isArray(data) ? data[0] : data;
-  const outputPath = Array.isArray(data) && data[1] ? data[1] : "assets\\audios\\output.wav";
+  let audioPath = Array.isArray(data) ? data[0] : data;
+  let outputPath = Array.isArray(data) && data[1] ? data[1] : "assets\\audios\\output.wav";
 
-  console.log("Uploaded path:", audioPath);
-  toast("Converting voice… please wait", "info");
+  if (Array.isArray(audioPath)) audioPath = audioPath[0];
+  audioPath = String(audioPath);
+  outputPath = String(outputPath);
 
-  // Step 2: Convert using positional arguments
+  console.log("Audio path:", audioPath);
+  toast("Converting… please wait", "info");
+
+  // Step 2: Convert
+  const args = [
+    true,                     // 0  terms
+    0,                        // 1  pitch
+    0.75,                     // 2  index rate
+    1.0,                      // 3  volume
+    0.5,                      // 4  protect
+    "rmvpe",                  // 5  f0 method
+    audioPath,                // 6  audio path
+    outputPath,               // 7  output path
+    "logs\\model.pth",        // 8  model
+    "logs\\model.index",      // 9  index
+    false,                    // 10 split
+    false,                    // 11 autotune
+    1.0,                      // 12 autotune strength
+    false,                    // 13 proposed pitch
+    155,                      // 14 threshold
+    false,                    // 15 clean
+    0.5,                      // 16 clean strength
+    "WAV",                    // 17 format
+    "contentvec",             // 18 embedder
+    null,                     // 19 custom embedder
+    false,                    // 20 formant
+    1.0,                      // 21 quefrency
+    1.0,                      // 22 timbre
+    false,                    // 23 post process
+    false, false, false, false, false, false, false, false, false, false, // 24-33
+    0.5, 0.5, 0.33, 0.4, 1.0, 0.0,  // 34-39
+    0,                        // 40
+    -6,                       // 41
+    0.05,                     // 42
+    0,                        // 43
+    25,                       // 44
+    1.0,                      // 45
+    0.25,                     // 46
+    7,                        // 47
+    0.0,                      // 48
+    0.5,                      // 49
+    8,                        // 50
+    -6,                       // 51
+    0,                        // 52
+    1,                        // 53
+    1.0,                      // 54
+    100,                      // 55
+    0.5,                      // 56
+    0.0,                      // 57
+    0.5,                      // 58
+    0                         // 59  Speaker ID
+  ];
+
   let result;
   try {
-    result = await client.predict("/enforce_terms", [
-      true,                    // 0  terms_accepted
-      0,                       // 1  pitch
-      0.75,                    // 2  index_rate
-      1,                       // 3  volume envelope
-      0.5,                     // 4  protect
-      "rmvpe",                 // 5  f0 method
-      audioPath,               // 6  select audio
-      outputPath,              // 7  output path
-      "logs\\model.pth",       // 8  voice model
-      "logs\\model.index",     // 9  index file
-      false,                   // 10 split audio
-      false,                   // 11 autotune
-      1,                       // 12 autotune strength
-      false,                   // 13 proposed pitch
-      155.0,                   // 14 proposed pitch threshold
-      false,                   // 15 clean audio
-      0.5,                     // 16 clean strength
-      "WAV",                   // 17 export format
-      "contentvec",            // 18 embedder
-      null,                    // 19 custom embedder
-      false,                   // 20 formant shifting
-      1.0,                     // 21 quefrency
-      1.0,                     // 22 timbre
-      false,                   // 23 post-process
-      false,                   // 24 reverb
-      false,                   // 25 pitch shift
-      false,                   // 26 limiter
-      false,                   // 27 gain
-      false,                   // 28 distortion
-      false,                   // 29 chorus
-      false,                   // 30 bitcrush
-      false,                   // 31 clipping
-      false,                   // 32 compressor
-      false,                   // 33 delay
-      0.5,                     // 34
-      0.5,                     // 35
-      0.33,                    // 36
-      0.4,                     // 37
-      1.0,                     // 38
-      0.0,                     // 39
-      0,                       // 40
-      -6,                      // 41
-      0.05,                    // 42
-      0,                       // 43
-      25,                      // 44
-      1.0,                     // 45
-      0.25,                    // 46
-      7,                       // 47
-      0.0,                     // 48
-      0.5,                     // 49
-      8,                       // 50
-      -6,                      // 51
-      0,                       // 52
-      1,                       // 53
-      1.0,                     // 54
-      100,                     // 55
-      0.5,                     // 56
-      0.0,                     // 57
-      0.5,                     // 58
-      "0"                      // 59
-    ]);
+    result = await client.predict("/enforce_terms", args);
   } catch (e) {
-    console.error("Conversion failed:", e);
-    throw new Error("Conversion failed. See console for details.");
+    console.error("First try failed:", e);
+
+    // Second try with Speaker ID as string
+    args[59] = "0";
+    try {
+      result = await client.predict("/enforce_terms", args);
+    } catch (e2) {
+      console.error("Second try failed:", e2);
+      throw new Error("Conversion failed. See console.");
+    }
   }
 
   const output = Array.isArray(result.data) ? result.data[0] : result.data;
@@ -192,7 +192,7 @@ async function aiConvertVoice(audioBlob, modelName) {
     return await res.blob();
   }
 
-  throw new Error("Conversion may have finished. Please check Applio for the output audio.");
+  throw new Error("Conversion may have finished. Check Applio for the result.");
 }
 
 /* =====================================================================
@@ -273,11 +273,10 @@ function startMeter(stream) {
 $('#recordConvertBtn').addEventListener('click', async () => {
   if (!currentRecordedBlob) return toast('⚠️ Record something first', 'error');
   const btn = $('#recordConvertBtn');
-  const model = $('#recordTarget').value;
   setBusy(btn, true);
   setStatus('recordStatus', true, '🎛️ Working with Applio…');
   try {
-    const out = await aiConvertVoice(currentRecordedBlob, model);
+    const out = await aiConvertVoice(currentRecordedBlob, "logs\\model.pth");
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
@@ -321,11 +320,10 @@ function handleFile(file) {
 $('#uploadConvertBtn').addEventListener('click', async () => {
   if (!uploadedBlob) return toast('⚠️ Upload an audio file first', 'error');
   const btn = $('#uploadConvertBtn');
-  const model = $('#uploadTarget').value;
   setBusy(btn, true);
   setStatus('uploadStatus', true, '🎛️ Working with Applio…');
   try {
-    const out = await aiConvertVoice(uploadedBlob, model);
+    const out = await aiConvertVoice(uploadedBlob, "logs\\model.pth");
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
