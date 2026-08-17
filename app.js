@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Applio (full working version) ================= */
+/* ================= Voice Lab — Applio (stronger download) ================= */
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -13,7 +13,7 @@ function toast(msg, type = 'info') {
   setTimeout(() => {
     t.classList.add('leaving');
     setTimeout(() => t.remove(), 320);
-  }, 7000);
+  }, 8000);
 }
 
 /* ---------- helpers ---------- */
@@ -101,21 +101,25 @@ async function forceToWav(blob) {
 
   const numChannels = audioBuffer.numberOfChannels;
   const sampleRate = audioBuffer.sampleRate;
-  const format = 1;
   const bitDepth = 16;
-
   const bytesPerSample = bitDepth / 8;
   const blockAlign = numChannels * bytesPerSample;
   const dataLength = audioBuffer.length * blockAlign;
   const buffer = new ArrayBuffer(44 + dataLength);
   const view = new DataView(buffer);
 
+  function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  }
+
   writeString(view, 0, 'RIFF');
   view.setUint32(4, 36 + dataLength, true);
   writeString(view, 8, 'WAVE');
   writeString(view, 12, 'fmt ');
   view.setUint32(16, 16, true);
-  view.setUint16(20, format, true);
+  view.setUint16(20, 1, true);
   view.setUint16(22, numChannels, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * blockAlign, true);
@@ -135,12 +139,6 @@ async function forceToWav(blob) {
     }
   }
 
-  function writeString(view, offset, string) {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  }
-
   await audioCtx.close();
   return new Blob([buffer], { type: 'audio/wav' });
 }
@@ -148,35 +146,84 @@ async function forceToWav(blob) {
 /* ==========================================================
    APPLIO
    ========================================================== */
-const APPLIO_URL = "https://478a4158e37bf18cbd.gradio.live"; // ← change if the link changes
+const APPLIO_URL = "https://478a4158e37bf18cbd.gradio.live"; // ← change if link changes
 
 async function getClient() {
   if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
   return await window.GradioClient.connect(APPLIO_URL);
 }
 
-function flattenUrls(data) {
-  const urls = [];
+function collectPossibleUrls(data, outputPath, filename) {
+  const urls = new Set();
+
+  function add(u) {
+    if (u && typeof u === "string") urls.add(u);
+  }
+
   function walk(obj) {
     if (!obj) return;
-    if (typeof obj === "string" && (obj.startsWith("http") || obj.includes("audios") || obj.includes(".wav"))) {
-      urls.push(obj);
-      if (!obj.startsWith("http")) {
-        urls.push(`${APPLIO_URL}/file=${obj}`);
-        urls.push(`${APPLIO_URL}/file=${obj.replace(/\\/g, "/")}`);
+    if (typeof obj === "string") {
+      if (obj.startsWith("http")) add(obj);
+      if (obj.includes(".wav") || obj.includes("audios") || obj.includes("output")) {
+        add(`${APPLIO_URL}/file=${obj}`);
+        add(`${APPLIO_URL}/file=${obj.replace(/\\/g, "/")}`);
+        add(obj);
       }
     } else if (Array.isArray(obj)) {
       obj.forEach(walk);
     } else if (typeof obj === "object") {
+      // Gradio sometimes returns {url, path, name, ...}
+      if (obj.url) add(obj.url);
+      if (obj.path) {
+        add(`${APPLIO_URL}/file=${obj.path}`);
+        add(`${APPLIO_URL}/file=${String(obj.path).replace(/\\/g, "/")}`);
+      }
       Object.values(obj).forEach(walk);
     }
   }
+
   walk(data);
-  return urls;
+
+  // Always try these
+  const candidates = [
+    outputPath,
+    outputPath.replace(/\\/g, "/"),
+    `assets/audios/${filename}`,
+    `assets\\audios\\${filename}`,
+    filename
+  ];
+
+  for (const p of candidates) {
+    add(`${APPLIO_URL}/file=${p}`);
+    add(`${APPLIO_URL}/file=${encodeURIComponent(p)}`);
+    add(`${APPLIO_URL}/gradio_api/file=${p}`);
+    add(`${APPLIO_URL}/gradio_api/file=${encodeURIComponent(p)}`);
+  }
+
+  return [...urls];
+}
+
+async function tryDownload(urls) {
+  for (const url of urls) {
+    try {
+      console.log("Trying:", url);
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      // Accept only real audio-sized files
+      if (blob.size > 3000 && (blob.type.startsWith("audio") || blob.type === "application/octet-stream" || blob.type === "")) {
+        console.log("Success:", url, "size:", blob.size);
+        return blob;
+      }
+    } catch (e) {
+      console.log("Failed:", url, e.message);
+    }
+  }
+  return null;
 }
 
 async function aiConvertVoice(audioBlob) {
-  toast("Converting recording to WAV…", "info");
+  toast("Converting to WAV…", "info");
 
   let wavBlob;
   try {
@@ -193,7 +240,7 @@ async function aiConvertVoice(audioBlob) {
   const client = await getClient();
   const file = await window.handle_file(fileToSend);
 
-  // Upload
+  // 1. Upload
   toast("Uploading to Applio…", "info");
   let uploadResult;
   try {
@@ -214,11 +261,13 @@ async function aiConvertVoice(audioBlob) {
     outputPath = audioPath.replace(/\.[^/.]+$/, "") + "_output.wav";
   }
   outputPath = String(outputPath);
+  const filename = outputPath.split(/[/\\]/).pop();
 
-  console.log("Input path:", audioPath);
-  console.log("Expected output path:", outputPath);
+  console.log("Input:", audioPath);
+  console.log("Output:", outputPath);
 
-  toast("Converting with Applio… please wait (1–2 min)", "info");
+  // 2. Convert
+  toast("Converting with Applio… (1–2 minutes)", "info");
 
   const args = [
     true, 0, 0.75, 1.0, 0.5, "rmvpe",
@@ -236,45 +285,30 @@ async function aiConvertVoice(audioBlob) {
     convertResult = await client.predict("/enforce_terms", args);
     console.log("Convert result:", convertResult);
   } catch (e) {
-    console.warn("enforce_terms error (conversion may still succeed):", e);
+    console.warn("enforce_terms error (file may still be created):", e);
   }
 
-  // Wait for the file to be written
-  await new Promise(r => setTimeout(r, 3000));
+  // 3. Wait then download
+  toast("Waiting for file…", "info");
+  await new Promise(r => setTimeout(r, 4000));
 
-  toast("Fetching converted audio…", "info");
+  toast("Downloading converted audio…", "info");
 
-  const filename = outputPath.split(/[/\\]/).pop();
+  const urls = collectPossibleUrls(
+    convertResult ? convertResult.data : null,
+    outputPath,
+    filename
+  );
 
-  const urlsToTry = [
-    ...(convertResult && convertResult.data ? flattenUrls(convertResult.data) : []),
-    `${APPLIO_URL}/file=${outputPath}`,
-    `${APPLIO_URL}/file=${outputPath.replace(/\\/g, "/")}`,
-    `${APPLIO_URL}/file=assets/audios/${filename}`,
-    `${APPLIO_URL}/file=assets\\audios\\${filename}`,
-    `${APPLIO_URL}/file=/tmp/gradio/${filename}`,
-    `${APPLIO_URL}/gradio_api/file=${outputPath}`,
-    `${APPLIO_URL}/gradio_api/file=${outputPath.replace(/\\/g, "/")}`,
-  ];
+  console.log("URLs to try:", urls);
 
-  for (const url of urlsToTry) {
-    if (!url || typeof url !== "string") continue;
-    try {
-      console.log("Trying to fetch:", url);
-      const res = await fetch(url);
-      if (res.ok) {
-        const blob = await res.blob();
-        if (blob.size > 2000) {
-          toast("Converted audio ready!", "ok");
-          return blob;
-        }
-      }
-    } catch (e) {
-      console.log("Failed:", url);
-    }
+  const blob = await tryDownload(urls);
+  if (blob) {
+    toast("Converted audio ready!", "ok");
+    return blob;
   }
 
-  throw new Error("Conversion finished on server but the website could not download the file. Check Applio → assets → audios for the *_output.wav file.");
+  throw new Error("Conversion finished but the page could not download the file. The file is on your PC in Applio → assets → audios (*_output.wav).");
 }
 
 /* =====================================================================
