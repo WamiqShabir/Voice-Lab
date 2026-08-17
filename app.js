@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Applio (WebM → WAV fix) ================= */
+/* ================= Voice Lab — Applio (forced WAV + download) ================= */
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -13,7 +13,7 @@ function toast(msg, type = 'info') {
   setTimeout(() => {
     t.classList.add('leaving');
     setTimeout(() => t.remove(), 320);
-  }, 6000);
+  }, 7000);
 }
 
 /* ---------- helpers ---------- */
@@ -52,6 +52,7 @@ function showResult(id, blob, name) {
   const url = URL.createObjectURL(blob);
   audio.src = url;
   audio.dataset.url = url;
+  audio.load();
   const dlBtn = box.querySelector('.btn-dl');
   if (dlBtn) dlBtn.onclick = () => saveBlob(blob, name);
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -80,107 +81,108 @@ function goTab(name) {
 $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
 /* ==========================================================
-   Convert WebM/Blob → WAV (so Applio can read it)
+   FORCE WebM / any format → WAV
    ========================================================== */
-async function convertToWav(blob) {
+async function forceToWav(blob) {
+  // If it's already wav/mp3, keep it
+  if (blob.type && (blob.type.includes('wav') || blob.type.includes('mpeg') || blob.type.includes('mp3'))) {
+    return blob;
+  }
+
   const arrayBuffer = await blob.arrayBuffer();
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-
-  const numOfChan = audioBuffer.numberOfChannels;
-  const length = audioBuffer.length * numOfChan * 2 + 44;
-  const buffer = new ArrayBuffer(length);
-  const view = new DataView(buffer);
-  const channels = [];
-  let sample;
-  let offset = 0;
-  let pos = 0;
-
-  // Write WAV header
-  setUint32(0x46464952); // "RIFF"
-  setUint32(length - 8);
-  setUint32(0x45564157); // "WAVE"
-  setUint32(0x20746d66); // "fmt "
-  setUint32(16);
-  setUint16(1); // PCM
-  setUint16(numOfChan);
-  setUint32(audioBuffer.sampleRate);
-  setUint32(audioBuffer.sampleRate * 2 * numOfChan);
-  setUint16(numOfChan * 2);
-  setUint16(16);
-  setUint32(0x61746164); // "data"
-  setUint32(length - 44);
-
-  for (let i = 0; i < audioBuffer.numberOfChannels; i++) {
-    channels.push(audioBuffer.getChannelData(i));
+  
+  let audioBuffer;
+  try {
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+  } catch (e) {
+    console.error("decodeAudioData failed:", e);
+    throw new Error("Browser could not decode the recording. Try uploading a WAV/MP3 file instead.");
   }
 
-  while (pos < audioBuffer.length) {
-    for (let i = 0; i < numOfChan; i++) {
-      sample = Math.max(-1, Math.min(1, channels[i][pos]));
-      sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
-      view.setInt16(44 + offset, sample, true);
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataLength = audioBuffer.length * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(buffer);
+
+  /* RIFF header */
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  // Write samples
+  let offset = 44;
+  for (let i = 0; i < audioBuffer.length; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      let sample = audioBuffer.getChannelData(ch)[i];
+      sample = Math.max(-1, Math.min(1, sample));
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, sample, true);
       offset += 2;
     }
-    pos++;
   }
 
-  function setUint16(data) {
-    view.setUint16(pos, data, true);
-    pos += 2;
-  }
-  function setUint32(data) {
-    view.setUint32(pos, data, true);
-    pos += 4;
+  function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
   }
 
-  return new Blob([buffer], { type: "audio/wav" });
+  await audioCtx.close();
+  return new Blob([buffer], { type: 'audio/wav' });
 }
 
 /* ==========================================================
-   APPLIO CONNECTION
+   APPLIO
    ========================================================== */
-const APPLIO_URL = "https://478a4158e37bf18cbd.gradio.live";
+const APPLIO_URL = "https://478a4158e37bf18cbd.gradio.live";  // ← change if link changes
 
 async function getClient() {
-  if (!window.GradioClient) {
-    throw new Error("Gradio client not loaded. Refresh the page.");
-  }
+  if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
   return await window.GradioClient.connect(APPLIO_URL);
 }
 
-async function aiConvertVoice(audioBlob, modelName) {
-  toast("Preparing audio…", "info");
+async function aiConvertVoice(audioBlob) {
+  toast("Converting recording to WAV…", "info");
 
-  const client = await getClient();
-
-  // Convert to WAV if needed (fixes WebM problem)
-  let wavBlob = audioBlob;
-  if (!audioBlob.type.includes("wav") && !audioBlob.type.includes("mpeg") && !audioBlob.type.includes("mp3")) {
-    try {
-      toast("Converting recording to WAV…", "info");
-      wavBlob = await convertToWav(audioBlob);
-    } catch (e) {
-      console.error("WAV conversion failed:", e);
-      throw new Error("Could not convert recording to WAV");
-    }
+  let wavBlob;
+  try {
+    wavBlob = await forceToWav(audioBlob);
+  } catch (e) {
+    console.error(e);
+    throw e;
   }
 
   const fileToSend = new File([wavBlob], `recording_${Date.now()}.wav`, {
     type: "audio/wav"
   });
 
+  const client = await getClient();
   const file = await window.handle_file(fileToSend);
 
-  // Step 1: Upload
+  // Upload
   toast("Uploading to Applio…", "info");
   let uploadResult;
   try {
-    uploadResult = await client.predict("/save_to_wav2", {
-      upload_audio: file
-    });
+    uploadResult = await client.predict("/save_to_wav2", { upload_audio: file });
   } catch (e) {
-    console.error("Upload failed:", e);
+    console.error(e);
     throw new Error("Failed to upload audio to Applio");
   }
 
@@ -191,16 +193,16 @@ async function aiConvertVoice(audioBlob, modelName) {
   if (Array.isArray(audioPath)) audioPath = audioPath[0];
   audioPath = String(audioPath || "");
 
-  if (!outputPath || outputPath === "undefined") {
+  if (!outputPath) {
     outputPath = audioPath.replace(/\.[^/.]+$/, "") + "_output.wav";
   }
   outputPath = String(outputPath);
 
-  console.log("Audio path:", audioPath);
-  console.log("Output path:", outputPath);
-  toast("Converting voice… this can take 1–2 minutes", "info");
+  console.log("Input:", audioPath);
+  console.log("Output:", outputPath);
 
-  // Step 2: Convert
+  toast("Converting with Applio… please wait (1–2 min)", "info");
+
   const args = [
     true, 0, 0.75, 1.0, 0.5, "rmvpe",
     audioPath, outputPath,
@@ -215,26 +217,29 @@ async function aiConvertVoice(audioBlob, modelName) {
   try {
     await client.predict("/enforce_terms", args);
   } catch (e) {
-    console.error("Conversion call error (often still succeeds):", e);
+    console.warn("enforce_terms error (conversion may still succeed):", e);
   }
 
-  // Step 3: Try to get the output
-  toast("Trying to get the converted audio…", "info");
+  // Wait a moment for file to be written
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Try to fetch the result
+  toast("Fetching converted audio…", "info");
 
   const filename = outputPath.split(/[/\\]/).pop();
-  const possibleUrls = [
+  const urls = [
     `${APPLIO_URL}/file=${outputPath}`,
     `${APPLIO_URL}/file=${outputPath.replace(/\\/g, "/")}`,
     `${APPLIO_URL}/file=assets/audios/${filename}`,
     `${APPLIO_URL}/file=assets\\audios\\${filename}`
   ];
 
-  for (const url of possibleUrls) {
+  for (const url of urls) {
     try {
       const res = await fetch(url);
       if (res.ok) {
         const blob = await res.blob();
-        if (blob.size > 1000) {
+        if (blob.size > 2000) {
           toast("Converted audio ready!", "ok");
           return blob;
         }
@@ -242,7 +247,7 @@ async function aiConvertVoice(audioBlob, modelName) {
     } catch (e) {}
   }
 
-  throw new Error("Conversion finished! File is on your PC in: Applio → assets → audios (look for *_output.wav)");
+  throw new Error("Conversion finished on your PC. Open folder: Applio → assets → audios and look for the *_output.wav file.");
 }
 
 /* =====================================================================
@@ -326,7 +331,7 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   setBusy(btn, true);
   setStatus('recordStatus', true, '🎛️ Working with Applio…');
   try {
-    const out = await aiConvertVoice(currentRecordedBlob, "logs\\model.pth");
+    const out = await aiConvertVoice(currentRecordedBlob);
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
@@ -337,10 +342,10 @@ $('#recordConvertBtn').addEventListener('click', async () => {
 });
 
 /* =====================================================================
-   TEXT TO VOICE
+   TEXT
    ===================================================================== */
 $('#textBtn').addEventListener('click', async () => {
-  toast('Text-to-Voice is limited. Please use Record or Upload.', 'error');
+  toast('Text-to-Voice is limited. Use Record or Upload.', 'error');
 });
 
 /* =====================================================================
@@ -373,7 +378,7 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   setBusy(btn, true);
   setStatus('uploadStatus', true, '🎛️ Working with Applio…');
   try {
-    const out = await aiConvertVoice(uploadedBlob, "logs\\model.pth");
+    const out = await aiConvertVoice(uploadedBlob);
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
