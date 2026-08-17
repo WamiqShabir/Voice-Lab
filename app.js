@@ -82,7 +82,7 @@ $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.
 /* ==========================================================
    APPLIO CONNECTION
    ========================================================== */
-const APPLIO_URL = " https://478a4158e37bf18cbd.gradio.live";
+const APPLIO_URL = "https://23295f57bd4af495a8.gradio.live";
 
 async function getClient() {
   if (!window.GradioClient) {
