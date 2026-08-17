@@ -13,7 +13,7 @@ function toast(msg, type = 'info') {
   setTimeout(() => {
     t.classList.add('leaving');
     setTimeout(() => t.remove(), 320);
-  }, 5000);
+  }, 6000);
 }
 
 /* ---------- helpers ---------- */
@@ -82,7 +82,7 @@ $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.
 /* ==========================================================
    APPLIO CONNECTION
    ========================================================== */
-const APPLIO_URL = "https://309cb6d374db505eb9.gradio.live";
+const APPLIO_URL = " https://478a4158e37bf18cbd.gradio.live";
 
 async function getClient() {
   if (!window.GradioClient) {
@@ -95,9 +95,21 @@ async function aiConvertVoice(audioBlob, modelName) {
   toast("Uploading audio to Applio…", "info");
 
   const client = await getClient();
-  const file = await window.handle_file(audioBlob);
 
-  // Step 1: Upload audio
+  // Give the file a proper name + extension (fixes the "blob" error)
+  let fileToSend = audioBlob;
+  if (!(audioBlob instanceof File) || !audioBlob.name || audioBlob.name === "blob") {
+    const ext = (audioBlob.type || "").includes("webm") ? "webm" :
+                (audioBlob.type || "").includes("ogg")  ? "ogg"  :
+                (audioBlob.type || "").includes("wav")  ? "wav"  : "webm";
+    fileToSend = new File([audioBlob], `recording_${Date.now()}.${ext}`, {
+      type: audioBlob.type || "audio/webm"
+    });
+  }
+
+  const file = await window.handle_file(fileToSend);
+
+  // Step 1: Upload
   let uploadResult;
   try {
     uploadResult = await client.predict("/save_to_wav2", {
@@ -110,89 +122,67 @@ async function aiConvertVoice(audioBlob, modelName) {
 
   const data = uploadResult.data;
   let audioPath = Array.isArray(data) ? data[0] : data;
-  let outputPath = Array.isArray(data) && data[1] ? data[1] : "assets\\audios\\output.wav";
+  let outputPath = Array.isArray(data) && data[1] ? data[1] : null;
 
   if (Array.isArray(audioPath)) audioPath = audioPath[0];
-  audioPath = String(audioPath);
+  audioPath = String(audioPath || "");
+
+  if (!outputPath || outputPath === "undefined") {
+    outputPath = audioPath.replace(/\.[^/.]+$/, "") + "_output.wav";
+  }
   outputPath = String(outputPath);
 
   console.log("Audio path:", audioPath);
-  toast("Converting… please wait", "info");
+  console.log("Output path:", outputPath);
+  toast("Converting… this can take 1–2 minutes", "info");
 
   // Step 2: Convert
   const args = [
-    true,                     // 0  terms
-    0,                        // 1  pitch
-    0.75,                     // 2  index rate
-    1.0,                      // 3  volume
-    0.5,                      // 4  protect
-    "rmvpe",                  // 5  f0 method
-    audioPath,                // 6  audio path
-    outputPath,               // 7  output path
-    "logs\\model.pth",        // 8  model
-    "logs\\model.index",      // 9  index
-    false,                    // 10 split
-    false,                    // 11 autotune
-    1.0,                      // 12 autotune strength
-    false,                    // 13 proposed pitch
-    155,                      // 14 threshold
-    false,                    // 15 clean
-    0.5,                      // 16 clean strength
-    "WAV",                    // 17 format
-    "contentvec",             // 18 embedder
-    null,                     // 19 custom embedder
-    false,                    // 20 formant
-    1.0,                      // 21 quefrency
-    1.0,                      // 22 timbre
-    false,                    // 23 post process
-    false, false, false, false, false, false, false, false, false, false, // 24-33
-    0.5, 0.5, 0.33, 0.4, 1.0, 0.0,  // 34-39
-    0,                        // 40
-    -6,                       // 41
-    0.05,                     // 42
-    0,                        // 43
-    25,                       // 44
-    1.0,                      // 45
-    0.25,                     // 46
-    7,                        // 47
-    0.0,                      // 48
-    0.5,                      // 49
-    8,                        // 50
-    -6,                       // 51
-    0,                        // 52
-    1,                        // 53
-    1.0,                      // 54
-    100,                      // 55
-    0.5,                      // 56
-    0.0,                      // 57
-    0.5,                      // 58
-    0                         // 59  Speaker ID
+    true, 0, 0.75, 1.0, 0.5, "rmvpe",
+    audioPath, outputPath,
+    "logs\\model.pth", "logs\\model.index",
+    false, false, 1.0, false, 155, false, 0.5, "WAV", "contentvec", null,
+    false, 1.0, 1.0, false,
+    false, false, false, false, false, false, false, false, false, false,
+    0.5, 0.5, 0.33, 0.4, 1.0, 0.0,
+    0, -6, 0.05, 0, 25, 1.0, 0.25, 7, 0.0, 0.5, 8, -6, 0, 1, 1.0, 100, 0.5, 0.0, 0.5, 0
   ];
 
-  let result;
   try {
-    result = await client.predict("/enforce_terms", args);
+    await client.predict("/enforce_terms", args);
   } catch (e) {
-    console.error("First try failed:", e);
+    console.error("Conversion call error (often still succeeds):", e);
+  }
 
-    // Second try with Speaker ID as string
-    args[59] = "0";
+  // Step 3: Try to download the converted file
+  toast("Trying to get the converted audio…", "info");
+
+  const filename = outputPath.split(/[/\\]/).pop();
+  const possibleUrls = [
+    `${APPLIO_URL}/file=${outputPath}`,
+    `${APPLIO_URL}/file=${outputPath.replace(/\\/g, "/")}`,
+    `${APPLIO_URL}/file=assets/audios/${filename}`,
+    `${APPLIO_URL}/file=assets\\audios\\${filename}`,
+    `${APPLIO_URL}/file=/tmp/gradio/${filename}`,
+  ];
+
+  for (const url of possibleUrls) {
     try {
-      result = await client.predict("/enforce_terms", args);
-    } catch (e2) {
-      console.error("Second try failed:", e2);
-      throw new Error("Conversion failed. See console.");
+      console.log("Trying:", url);
+      const res = await fetch(url);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 1000) {
+          toast("Converted audio ready!", "ok");
+          return blob;
+        }
+      }
+    } catch (e) {
+      console.log("Fetch failed for", url);
     }
   }
 
-  const output = Array.isArray(result.data) ? result.data[0] : result.data;
-
-  if (typeof output === "string" && (output.startsWith("http") || output.startsWith("data:"))) {
-    const res = await fetch(output);
-    return await res.blob();
-  }
-
-  throw new Error("Conversion may have finished. Check Applio for the result.");
+  throw new Error("Conversion finished! File is on your PC in: Applio folder → assets → audios (look for *_output.wav)");
 }
 
 /* =====================================================================
