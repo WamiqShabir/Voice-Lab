@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Applio (stronger download) ================= */
+/* ================= Voice Lab — Applio (with Text-to-Voice) ================= */
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -96,7 +96,7 @@ async function forceToWav(blob) {
     audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
   } catch (e) {
     console.error("decodeAudioData failed:", e);
-    throw new Error("Browser could not decode the recording. Try uploading a WAV/MP3 file instead.");
+    throw new Error("Browser could not decode the audio.");
   }
 
   const numChannels = audioBuffer.numberOfChannels;
@@ -144,9 +144,40 @@ async function forceToWav(blob) {
 }
 
 /* ==========================================================
+   Free Text-to-Speech (base voice)
+   ========================================================== */
+async function textToSpeechBlob(text) {
+  // Method 1: Try a free TTS endpoint
+  try {
+    const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob.size > 1000) return blob;
+    }
+  } catch (e) {
+    console.log("StreamElements TTS failed, trying fallback...");
+  }
+
+  // Method 2: Fallback - Google Translate TTS (unofficial)
+  try {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const blob = await res.blob();
+      if (blob.size > 500) return blob;
+    }
+  } catch (e) {
+    console.log("Google TTS failed");
+  }
+
+  throw new Error("Could not generate speech from text. Try a shorter sentence or use Record/Upload.");
+}
+
+/* ==========================================================
    APPLIO
    ========================================================== */
-const APPLIO_URL = "https://478a4158e37bf18cbd.gradio.live"; // ← change if link changes
+const APPLIO_URL = "https://52f83ecaff5904e53f.gradio.live";
 
 async function getClient() {
   if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
@@ -172,7 +203,6 @@ function collectPossibleUrls(data, outputPath, filename) {
     } else if (Array.isArray(obj)) {
       obj.forEach(walk);
     } else if (typeof obj === "object") {
-      // Gradio sometimes returns {url, path, name, ...}
       if (obj.url) add(obj.url);
       if (obj.path) {
         add(`${APPLIO_URL}/file=${obj.path}`);
@@ -184,7 +214,6 @@ function collectPossibleUrls(data, outputPath, filename) {
 
   walk(data);
 
-  // Always try these
   const candidates = [
     outputPath,
     outputPath.replace(/\\/g, "/"),
@@ -197,7 +226,6 @@ function collectPossibleUrls(data, outputPath, filename) {
     add(`${APPLIO_URL}/file=${p}`);
     add(`${APPLIO_URL}/file=${encodeURIComponent(p)}`);
     add(`${APPLIO_URL}/gradio_api/file=${p}`);
-    add(`${APPLIO_URL}/gradio_api/file=${encodeURIComponent(p)}`);
   }
 
   return [...urls];
@@ -210,20 +238,19 @@ async function tryDownload(urls) {
       const res = await fetch(url, { mode: "cors" });
       if (!res.ok) continue;
       const blob = await res.blob();
-      // Accept only real audio-sized files
       if (blob.size > 3000 && (blob.type.startsWith("audio") || blob.type === "application/octet-stream" || blob.type === "")) {
         console.log("Success:", url, "size:", blob.size);
         return blob;
       }
     } catch (e) {
-      console.log("Failed:", url, e.message);
+      console.log("Failed:", url);
     }
   }
   return null;
 }
 
 async function aiConvertVoice(audioBlob) {
-  toast("Converting to WAV…", "info");
+  toast("Preparing audio…", "info");
 
   let wavBlob;
   try {
@@ -240,7 +267,6 @@ async function aiConvertVoice(audioBlob) {
   const client = await getClient();
   const file = await window.handle_file(fileToSend);
 
-  // 1. Upload
   toast("Uploading to Applio…", "info");
   let uploadResult;
   try {
@@ -266,7 +292,6 @@ async function aiConvertVoice(audioBlob) {
   console.log("Input:", audioPath);
   console.log("Output:", outputPath);
 
-  // 2. Convert
   toast("Converting with Applio… (1–2 minutes)", "info");
 
   const args = [
@@ -288,7 +313,6 @@ async function aiConvertVoice(audioBlob) {
     console.warn("enforce_terms error (file may still be created):", e);
   }
 
-  // 3. Wait then download
   toast("Waiting for file…", "info");
   await new Promise(r => setTimeout(r, 4000));
 
@@ -300,15 +324,13 @@ async function aiConvertVoice(audioBlob) {
     filename
   );
 
-  console.log("URLs to try:", urls);
-
   const blob = await tryDownload(urls);
   if (blob) {
     toast("Converted audio ready!", "ok");
     return blob;
   }
 
-  throw new Error("Conversion finished but the page could not download the file. The file is on your PC in Applio → assets → audios (*_output.wav).");
+  throw new Error("Conversion finished but the page could not download the file. Check Applio → assets → audios (*_output.wav).");
 }
 
 /* =====================================================================
@@ -403,10 +425,35 @@ $('#recordConvertBtn').addEventListener('click', async () => {
 });
 
 /* =====================================================================
-   TEXT
+   TEXT TO VOICE
    ===================================================================== */
 $('#textBtn').addEventListener('click', async () => {
-  toast('Text-to-Voice is limited. Use Record or Upload.', 'error');
+  const text = ($('#textInput').value || "").trim();
+  if (!text) return toast('⚠️ Type some text first', 'error');
+  if (text.length > 300) return toast('⚠️ Please use shorter text (max ~300 characters)', 'error');
+
+  const btn = $('#textBtn');
+  setBusy(btn, true);
+  setStatus('textStatus', true, '🎛️ Generating speech…');
+
+  try {
+    // 1. Text → base speech
+    toast("Generating base speech…", "info");
+    const speechBlob = await textToSpeechBlob(text);
+
+    // 2. Base speech → Applio voice
+    setStatus('textStatus', true, '🎛️ Converting with Applio…');
+    const out = await aiConvertVoice(speechBlob);
+
+    showResult('textResult', out, 'text_converted_' + Date.now() + '.wav');
+    toast('🤖 Text converted to voice!', 'ok');
+  } catch (err) {
+    console.error(err);
+    toast('❌ ' + (err.message || 'Text-to-Voice failed'), 'error');
+  }
+
+  setStatus('textStatus', false);
+  setBusy(btn, false);
 });
 
 /* =====================================================================
