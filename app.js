@@ -147,31 +147,55 @@ async function forceToWav(blob) {
    Free Text-to-Speech (base voice)
    ========================================================== */
 async function textToSpeechBlob(text) {
-  // Method 1
-  try {
-    const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
-    const res = await fetch(url);
-    if (res.ok) {
+  const encoded = encodeURIComponent(text);
+
+  // List of methods to try
+  const methods = [
+    // Method 1: StreamElements via CORS proxy
+    async () => {
+      const target = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encoded}`;
+      const url = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("fail");
       const blob = await res.blob();
-      if (blob.size > 1000) return blob;
+      if (blob.size < 500) throw new Error("too small");
+      return blob;
+    },
+
+    // Method 2: Google TTS via CORS proxy
+    async () => {
+      const target = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=en&client=tw-ob`;
+      const url = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("fail");
+      const blob = await res.blob();
+      if (blob.size < 300) throw new Error("too small");
+      return blob;
+    },
+
+    // Method 3: Another proxy
+    async () => {
+      const target = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=en&client=tw-ob`;
+      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("fail");
+      const blob = await res.blob();
+      if (blob.size < 300) throw new Error("too small");
+      return blob;
     }
-  } catch (e) {
-    console.log("StreamElements TTS failed, trying fallback...");
+  ];
+
+  for (const method of methods) {
+    try {
+      const blob = await method();
+      console.log("TTS success, size:", blob.size);
+      return blob;
+    } catch (e) {
+      console.log("TTS method failed, trying next...");
+    }
   }
 
-  // Method 2
-  try {
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const blob = await res.blob();
-      if (blob.size > 500) return blob;
-    }
-  } catch (e) {
-    console.log("Google TTS failed");
-  }
-
-  throw new Error("Could not generate speech from text. Try a shorter sentence or use Record/Upload.");
+  throw new Error("Could not generate speech from text. The free TTS services are blocked. Please use Record or Upload instead.");
 }
 
 /* ==========================================================
