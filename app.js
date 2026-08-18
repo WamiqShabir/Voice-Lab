@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Applio (with TTS Text-to-Voice) ================= */
+/* ================= Voice Lab — Applio (multi-voice) ================= */
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -80,6 +80,15 @@ function goTab(name) {
 }
 $$('.tab').forEach(tab => tab.addEventListener('click', () => goTab(tab.dataset.tab)));
 
+/* ---------- voice helper ---------- */
+function getVoice(selectId) {
+  const val = ($(selectId).value || "model.pth|model.index").split("|");
+  return {
+    pth: "logs\\" + val[0],
+    index: "logs\\" + (val[1] || val[0].replace(".pth", ".index"))
+  };
+}
+
 /* ==========================================================
    FORCE any format → WAV
    ========================================================== */
@@ -146,7 +155,7 @@ async function forceToWav(blob) {
 /* ==========================================================
    APPLIO
    ========================================================== */
-const APPLIO_URL = "https://52f83ecaff5904e53f.gradio.live";
+const APPLIO_URL = "https://52f83ecaff5904e53f.gradio.live"; // ← update if link changes
 
 async function getClient() {
   if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
@@ -218,7 +227,7 @@ async function tryDownload(urls) {
   return null;
 }
 
-async function aiConvertVoice(audioBlob) {
+async function aiConvertVoice(audioBlob, pthPath, indexPath) {
   toast("Preparing audio…", "info");
 
   let wavBlob;
@@ -260,13 +269,14 @@ async function aiConvertVoice(audioBlob) {
 
   console.log("Input:", audioPath);
   console.log("Output:", outputPath);
+  console.log("Model:", pthPath, indexPath);
 
   toast("Converting with Applio… (1–2 minutes)", "info");
 
   const args = [
     true, 0, 0.75, 1.0, 0.5, "rmvpe",
     audioPath, outputPath,
-    "logs\\model.pth", "logs\\model.index",
+    pthPath, indexPath,
     false, false, 1.0, false, 155, false, 0.5, "WAV", "contentvec", null,
     false, 1.0, 1.0, false,
     false, false, false, false, false, false, false, false, false, false,
@@ -380,10 +390,11 @@ function startMeter(stream) {
 $('#recordConvertBtn').addEventListener('click', async () => {
   if (!currentRecordedBlob) return toast('⚠️ Record something first', 'error');
   const btn = $('#recordConvertBtn');
+  const voice = getVoice('#recordTarget');
   setBusy(btn, true);
   setStatus('recordStatus', true, '🎛️ Working with Applio…');
   try {
-    const out = await aiConvertVoice(currentRecordedBlob);
+    const out = await aiConvertVoice(currentRecordedBlob, voice.pth, voice.index);
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
@@ -402,6 +413,7 @@ $('#textBtn').addEventListener('click', async () => {
   if (text.length > 400) return toast('⚠️ Please use shorter text', 'error');
 
   const btn = $('#textBtn');
+  const voice = getVoice('#textTarget');
   setBusy(btn, true);
   setStatus('textStatus', true, '🎛️ Generating speech with Applio TTS…');
 
@@ -411,31 +423,31 @@ $('#textBtn').addEventListener('click', async () => {
     toast("Running Applio TTS + voice conversion…", "info");
 
     const ttsArgs = [
-      true,                                          // terms_accepted
-      "",                                            // param_1 text file path
-      text,                                          // param_2 text to synthesize
-      "en-US-JennyNeural",                           // param_3 TTS voice
-      0,                                             // param_4 TTS speed
-      0,                                             // param_5 pitch
-      0.75,                                          // param_6 index rate
-      1,                                             // param_7 volume
-      0.5,                                           // param_8 protect
-      "rmvpe",                                       // param_9 f0 method
-      "assets\\audios\\tts_output.wav",              // param_10
-      "assets\\audios\\tts_rvc_output.wav",          // param_11
-      "logs\\model.pth",                             // param_12 model
-      "logs\\model.index",                           // param_13 index
-      false,                                         // param_14
-      false,                                         // param_15
-      1,                                             // param_16
-      false,                                         // param_17
-      155.0,                                         // param_18
-      false,                                         // param_19
-      0.5,                                           // param_20
-      "WAV",                                         // param_21
-      "contentvec",                                  // param_22
-      null,                                          // param_23
-      "0"                                            // param_24
+      true,
+      "",
+      text,
+      "en-US-JennyNeural",
+      0,
+      0,
+      0.75,
+      1,
+      0.5,
+      "rmvpe",
+      "assets\\audios\\tts_output.wav",
+      "assets\\audios\\tts_rvc_output.wav",
+      voice.pth,
+      voice.index,
+      false,
+      false,
+      1,
+      false,
+      155.0,
+      false,
+      0.5,
+      "WAV",
+      "contentvec",
+      null,
+      "0"
     ];
 
     let result = null;
@@ -509,10 +521,11 @@ function handleFile(file) {
 $('#uploadConvertBtn').addEventListener('click', async () => {
   if (!uploadedBlob) return toast('⚠️ Upload an audio file first', 'error');
   const btn = $('#uploadConvertBtn');
+  const voice = getVoice('#uploadTarget');
   setBusy(btn, true);
   setStatus('uploadStatus', true, '🎛️ Working with Applio…');
   try {
-    const out = await aiConvertVoice(uploadedBlob);
+    const out = await aiConvertVoice(uploadedBlob, voice.pth, voice.index);
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
     toast('🤖 Converted!', 'ok');
   } catch (err) {
