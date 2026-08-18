@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Applio (with Text-to-Voice) ================= */
+/* ================= Voice Lab — Applio (with TTS Text-to-Voice) ================= */
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -141,61 +141,6 @@ async function forceToWav(blob) {
 
   await audioCtx.close();
   return new Blob([buffer], { type: 'audio/wav' });
-}
-
-/* ==========================================================
-   Free Text-to-Speech (base voice)
-   ========================================================== */
-async function textToSpeechBlob(text) {
-  const encoded = encodeURIComponent(text);
-
-  // List of methods to try
-  const methods = [
-    // Method 1: StreamElements via CORS proxy
-    async () => {
-      const target = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encoded}`;
-      const url = `https://corsproxy.io/?${encodeURIComponent(target)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("fail");
-      const blob = await res.blob();
-      if (blob.size < 500) throw new Error("too small");
-      return blob;
-    },
-
-    // Method 2: Google TTS via CORS proxy
-    async () => {
-      const target = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=en&client=tw-ob`;
-      const url = `https://corsproxy.io/?${encodeURIComponent(target)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("fail");
-      const blob = await res.blob();
-      if (blob.size < 300) throw new Error("too small");
-      return blob;
-    },
-
-    // Method 3: Another proxy
-    async () => {
-      const target = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=en&client=tw-ob`;
-      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("fail");
-      const blob = await res.blob();
-      if (blob.size < 300) throw new Error("too small");
-      return blob;
-    }
-  ];
-
-  for (const method of methods) {
-    try {
-      const blob = await method();
-      console.log("TTS success, size:", blob.size);
-      return blob;
-    } catch (e) {
-      console.log("TTS method failed, trying next...");
-    }
-  }
-
-  throw new Error("Could not generate speech from text. The free TTS services are blocked. Please use Record or Upload instead.");
 }
 
 /* ==========================================================
@@ -449,26 +394,85 @@ $('#recordConvertBtn').addEventListener('click', async () => {
 });
 
 /* =====================================================================
-   TEXT TO VOICE
+   TEXT TO VOICE (Applio TTS)
    ===================================================================== */
 $('#textBtn').addEventListener('click', async () => {
   const text = ($('#textInput').value || "").trim();
   if (!text) return toast('⚠️ Type some text first', 'error');
-  if (text.length > 300) return toast('⚠️ Please use shorter text (max ~300 characters)', 'error');
+  if (text.length > 400) return toast('⚠️ Please use shorter text', 'error');
 
   const btn = $('#textBtn');
   setBusy(btn, true);
-  setStatus('textStatus', true, '🎛️ Generating speech…');
+  setStatus('textStatus', true, '🎛️ Generating speech with Applio TTS…');
 
   try {
-    toast("Generating base speech…", "info");
-    const speechBlob = await textToSpeechBlob(text);
+    const client = await getClient();
 
-    setStatus('textStatus', true, '🎛️ Converting with Applio…');
-    const out = await aiConvertVoice(speechBlob);
+    toast("Running Applio TTS + voice conversion…", "info");
 
-    showResult('textResult', out, 'text_converted_' + Date.now() + '.wav');
-    toast('🤖 Text converted to voice!', 'ok');
+    const ttsArgs = [
+      true,                                          // terms_accepted
+      "",                                            // param_1 text file path
+      text,                                          // param_2 text to synthesize
+      "en-US-JennyNeural",                           // param_3 TTS voice
+      0,                                             // param_4 TTS speed
+      0,                                             // param_5 pitch
+      0.75,                                          // param_6 index rate
+      1,                                             // param_7 volume
+      0.5,                                           // param_8 protect
+      "rmvpe",                                       // param_9 f0 method
+      "assets\\audios\\tts_output.wav",              // param_10
+      "assets\\audios\\tts_rvc_output.wav",          // param_11
+      "logs\\model.pth",                             // param_12 model
+      "logs\\model.index",                           // param_13 index
+      false,                                         // param_14
+      false,                                         // param_15
+      1,                                             // param_16
+      false,                                         // param_17
+      155.0,                                         // param_18
+      false,                                         // param_19
+      0.5,                                           // param_20
+      "WAV",                                         // param_21
+      "contentvec",                                  // param_22
+      null,                                          // param_23
+      "0"                                            // param_24
+    ];
+
+    let result = null;
+    try {
+      result = await client.predict("/enforce_terms_2", ttsArgs);
+      console.log("TTS result:", result);
+    } catch (e) {
+      console.warn("TTS call error (may still succeed):", e);
+    }
+
+    await new Promise(r => setTimeout(r, 5000));
+
+    toast("Downloading converted audio…", "info");
+
+    const outputPath = "assets\\audios\\tts_rvc_output.wav";
+    const filename = "tts_rvc_output.wav";
+
+    const urls = collectPossibleUrls(
+      result ? result.data : null,
+      outputPath,
+      filename
+    );
+
+    urls.unshift(
+      `${APPLIO_URL}/file=assets/audios/tts_rvc_output.wav`,
+      `${APPLIO_URL}/file=assets\\audios\\tts_rvc_output.wav`,
+      `${APPLIO_URL}/file=tts_rvc_output.wav`
+    );
+
+    const blob = await tryDownload(urls);
+    if (blob) {
+      showResult('textResult', blob, 'text_converted_' + Date.now() + '.wav');
+      toast('🤖 Text converted to voice!', 'ok');
+    } else {
+      throw new Error("TTS finished but could not download the audio. Check Applio for tts_rvc_output.wav");
+    }
+
   } catch (err) {
     console.error(err);
     toast('❌ ' + (err.message || 'Text-to-Voice failed'), 'error');
