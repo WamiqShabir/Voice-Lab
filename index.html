@@ -36,7 +36,7 @@
     <section id="tab-recordrec" class="panel active">
       <div class="card">
         <h2>🎤 Record & Convert</h2>
-        <p class="hint">Record your voice, choose a voice, then convert.</p>
+        <p class="hint">Record your voice, then convert it.</p>
 
         <div class="record-wrap">
           <button id="recordBtn" class="record-btn"><span class="mic">🎙️</span></button>
@@ -56,7 +56,7 @@
 
         <div id="recordStatus" class="status hidden">
           <div class="spinner"></div>
-          <span class="status-text">Sending to Applio…</span>
+          <span class="status-text">Working with Applio…</span>
         </div>
 
         <div class="result-card hidden" id="recordResult">
@@ -74,7 +74,7 @@
     <section id="tab-textvoice" class="panel">
       <div class="card">
         <h2>✍️ Text to Voice</h2>
-        <p class="hint">Type text and convert (limited free version).</p>
+        <p class="hint">Type text, generate speech, then convert it with Applio.</p>
 
         <label class="field-label">Your text</label>
         <textarea id="textInput" class="input" rows="4" placeholder="Type something here…"></textarea>
@@ -126,7 +126,7 @@
 
         <div id="uploadStatus" class="status hidden">
           <div class="spinner"></div>
-          <span class="status-text">Sending to Applio…</span>
+          <span class="status-text">Working with Applio…</span>
         </div>
 
         <div class="result-card hidden" id="uploadResult">
@@ -143,6 +143,6 @@
   </main>
 
   <div id="toasts"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
