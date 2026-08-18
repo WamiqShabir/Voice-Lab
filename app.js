@@ -416,6 +416,9 @@ $('#recordConvertBtn').addEventListener('click', async () => {
 /* =====================================================================
    TEXT TO VOICE (Applio TTS)
    ===================================================================== */
+/* =====================================================================
+   TEXT TO VOICE (Applio TTS) — fixed Speaker ID
+   ===================================================================== */
 $('#textBtn').addEventListener('click', async () => {
   const text = ($('#textInput').value || "").trim();
   if (!text) return toast('⚠️ Type some text first', 'error');
@@ -430,50 +433,66 @@ $('#textBtn').addEventListener('click', async () => {
     const client = await getClient();
     toast("Running Applio TTS + voice conversion…", "info");
 
-    // Named parameters (more reliable for TTS)
+    // Try with Speaker ID as number 0 first
+    const baseArgs = {
+      terms_accepted: true,
+      param_1: "",
+      param_2: text,
+      param_3: "en-US-JennyNeural",
+      param_4: 0,
+      param_5: 0,
+      param_6: 0.75,
+      param_7: 1,
+      param_8: 0.5,
+      param_9: "rmvpe",
+      param_10: "assets\\audios\\tts_output.wav",
+      param_11: "assets\\audios\\tts_rvc_output.wav",
+      param_12: voice.pth,
+      param_13: voice.index,
+      param_14: false,
+      param_15: false,
+      param_16: 1,
+      param_17: false,
+      param_18: 155.0,
+      param_19: false,
+      param_20: 0.5,
+      param_21: "WAV",
+      param_22: "contentvec",
+      param_23: null,
+      param_24: 0          // number, not string
+    };
+
     let result = null;
     try {
-      result = await client.predict("/enforce_terms_2", {
-        terms_accepted: true,
-        param_1: "",
-        param_2: text,
-        param_3: "en-US-JennyNeural",
-        param_4: 0,
-        param_5: 0,
-        param_6: 0.75,
-        param_7: 1,
-        param_8: 0.5,
-        param_9: "rmvpe",
-        param_10: "assets\\audios\\tts_output.wav",
-        param_11: "assets\\audios\\tts_rvc_output.wav",
-        param_12: voice.pth,
-        param_13: voice.index,
-        param_14: false,
-        param_15: false,
-        param_16: 1,
-        param_17: false,
-        param_18: 155.0,
-        param_19: false,
-        param_20: 0.5,
-        param_21: "WAV",
-        param_22: "contentvec",
-        param_23: null,
-        param_24: "0"
-      });
+      result = await client.predict("/enforce_terms_2", baseArgs);
       console.log("TTS result:", result);
     } catch (e1) {
-      console.warn("Named TTS failed, trying positional...", e1);
+      console.warn("First TTS try failed:", e1);
+
+      // Second try: Speaker ID as string "0"
+      baseArgs.param_24 = "0";
       try {
-        result = await client.predict("/enforce_terms_2", [
-          true, "", text, "en-US-JennyNeural", 0, 0, 0.75, 1, 0.5, "rmvpe",
-          "assets\\audios\\tts_output.wav", "assets\\audios\\tts_rvc_output.wav",
-          voice.pth, voice.index,
-          false, false, 1, false, 155.0, false, 0.5, "WAV", "contentvec", null, "0"
-        ]);
-        console.log("TTS positional result:", result);
+        result = await client.predict("/enforce_terms_2", baseArgs);
+        console.log("TTS result (string 0):", result);
       } catch (e2) {
-        console.error("TTS failed:", e2);
-        throw new Error("Text-to-Voice failed. Make sure Applio TTS tab works manually first.");
+        console.warn("Second TTS try failed:", e2);
+
+        // Third try: positional with number 0 at the end
+        try {
+          result = await client.predict("/enforce_terms_2", [
+            true, "", text, "en-US-JennyNeural",
+            0, 0, 0.75, 1, 0.5, "rmvpe",
+            "assets\\audios\\tts_output.wav",
+            "assets\\audios\\tts_rvc_output.wav",
+            voice.pth, voice.index,
+            false, false, 1, false, 155.0, false, 0.5, "WAV", "contentvec", null,
+            0
+          ]);
+          console.log("TTS positional result:", result);
+        } catch (e3) {
+          console.error("All TTS tries failed:", e3);
+          throw new Error("Text-to-Voice failed. Try using Record or Upload instead.");
+        }
       }
     }
 
