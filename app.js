@@ -401,7 +401,7 @@ $('#recordConvertBtn').addEventListener('click', async () => {
   const btn = $('#recordConvertBtn');
   const voice = getVoice('#recordTarget');
   setBusy(btn, true);
-  setStatus('recordStatus', true, '🎛️ Working with Applio…');
+  setStatus('recordStatus', true, '🎛️ Working with AI…');
   try {
     const out = await aiConvertVoice(currentRecordedBlob, voice.pth, voice.index);
     showResult('recordResult', out, 'converted_' + Date.now() + '.wav');
@@ -424,7 +424,7 @@ $('#textBtn').addEventListener('click', async () => {
   const btn = $('#textBtn');
   const voice = getVoice('#textTarget');
   setBusy(btn, true);
-  setStatus('textStatus', true, '🎛️ Generating speech with Applio TTS…');
+  setStatus('textStatus', true, '🎛️ Generating speech with AI TTS…');
 
   try {
     const client = await getClient();
@@ -529,7 +529,7 @@ $('#uploadConvertBtn').addEventListener('click', async () => {
   const btn = $('#uploadConvertBtn');
   const voice = getVoice('#uploadTarget');
   setBusy(btn, true);
-  setStatus('uploadStatus', true, '🎛️ Working with Applio…');
+  setStatus('uploadStatus', true, '🎛️ Working with AI…');
   try {
     const out = await aiConvertVoice(uploadedBlob, voice.pth, voice.index);
     showResult('uploadResult', out, 'converted_' + Date.now() + '.wav');
