@@ -147,7 +147,7 @@ async function forceToWav(blob) {
    Free Text-to-Speech (base voice)
    ========================================================== */
 async function textToSpeechBlob(text) {
-  // Method 1: Try a free TTS endpoint
+  // Method 1
   try {
     const url = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
     const res = await fetch(url);
@@ -159,7 +159,7 @@ async function textToSpeechBlob(text) {
     console.log("StreamElements TTS failed, trying fallback...");
   }
 
-  // Method 2: Fallback - Google Translate TTS (unofficial)
+  // Method 2
   try {
     const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
     const res = await fetch(url);
@@ -437,11 +437,9 @@ $('#textBtn').addEventListener('click', async () => {
   setStatus('textStatus', true, '🎛️ Generating speech…');
 
   try {
-    // 1. Text → base speech
     toast("Generating base speech…", "info");
     const speechBlob = await textToSpeechBlob(text);
 
-    // 2. Base speech → Applio voice
     setStatus('textStatus', true, '🎛️ Converting with Applio…');
     const out = await aiConvertVoice(speechBlob);
 
