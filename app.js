@@ -260,7 +260,7 @@ async function aiConvertVoice(audioBlob, pthPath, indexPath) {
     uploadResult = await client.predict("/save_to_wav2", { upload_audio: file });
   } catch (e) {
     console.error(e);
-    throw new Error("Failed to upload audio to Applio");
+    throw new Error("Failed to upload audio to AI");
   }
 
   const data = uploadResult.data;
@@ -280,7 +280,7 @@ async function aiConvertVoice(audioBlob, pthPath, indexPath) {
   console.log("Output:", outputPath);
   console.log("Model:", pthPath, indexPath);
 
-  toast("Converting with Applio… (1–2 minutes)", "info");
+  toast("Converting with AI… (1–2 minutes)", "info");
 
   const args = [
     true, 0, 0.75, 1.0, 0.5, "rmvpe",
@@ -428,7 +428,7 @@ $('#textBtn').addEventListener('click', async () => {
 
   try {
     const client = await getClient();
-    toast("Running Applio TTS + conversion…", "info");
+    toast("Running AI TTS + conversion…", "info");
 
     // Full positional args (same idea as working Record/Upload)
     // Last value 0 = Speaker ID
@@ -488,7 +488,7 @@ $('#textBtn').addEventListener('click', async () => {
       showResult('textResult', blob, 'text_converted_' + Date.now() + '.wav');
       toast('🤖 Text converted to voice!', 'ok');
     } else {
-      throw new Error("TTS may have finished. Check Applio assets/audios for tts_rvc_output.wav");
+      throw new Error("TTS may have finished. Check AI assets/audios for tts_rvc_output.wav");
     }
 
   } catch (err) {
