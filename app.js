@@ -1,4 +1,4 @@
-/* ================= Voice Lab — Applio (multi-voice) ================= */
+/* ================= Voice Lab — Applio (fixed TTS + download) ================= */
 'use strict';
 
 const $ = s => document.querySelector(s);
@@ -155,7 +155,7 @@ async function forceToWav(blob) {
 /* ==========================================================
    APPLIO
    ========================================================== */
-const APPLIO_URL = "https://6b9de40e3f92065e55.gradio.live"; // ← update if link changes
+const APPLIO_URL = "https://6b9de40e3f92065e55.gradio.live";
 
 async function getClient() {
   if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
@@ -173,7 +173,7 @@ function collectPossibleUrls(data, outputPath, filename) {
     if (!obj) return;
     if (typeof obj === "string") {
       if (obj.startsWith("http")) add(obj);
-      if (obj.includes(".wav") || obj.includes("audios") || obj.includes("output")) {
+      if (obj.includes(".wav") || obj.includes("audios") || obj.includes("output") || obj.includes("tts")) {
         add(`${APPLIO_URL}/file=${obj}`);
         add(`${APPLIO_URL}/file=${obj.replace(/\\/g, "/")}`);
         add(obj);
@@ -204,24 +204,33 @@ function collectPossibleUrls(data, outputPath, filename) {
     add(`${APPLIO_URL}/file=${p}`);
     add(`${APPLIO_URL}/file=${encodeURIComponent(p)}`);
     add(`${APPLIO_URL}/gradio_api/file=${p}`);
+    add(`${APPLIO_URL}/gradio_api/file=${encodeURIComponent(p)}`);
   }
 
   return [...urls];
 }
 
 async function tryDownload(urls) {
-  for (const url of urls) {
-    try {
-      console.log("Trying:", url);
-      const res = await fetch(url, { mode: "cors" });
-      if (!res.ok) continue;
-      const blob = await res.blob();
-      if (blob.size > 3000 && (blob.type.startsWith("audio") || blob.type === "application/octet-stream" || blob.type === "")) {
-        console.log("Success:", url, "size:", blob.size);
-        return blob;
+  // try multiple times (file may appear a bit late)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      toast(`Retrying download (${attempt + 1}/3)…`, "info");
+      await new Promise(r => setTimeout(r, 2500));
+    }
+
+    for (const url of urls) {
+      try {
+        console.log("Trying:", url);
+        const res = await fetch(url, { mode: "cors" });
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        if (blob.size > 3000) {
+          console.log("Success:", url, "size:", blob.size);
+          return blob;
+        }
+      } catch (e) {
+        console.log("Failed:", url);
       }
-    } catch (e) {
-      console.log("Failed:", url);
     }
   }
   return null;
@@ -293,7 +302,7 @@ async function aiConvertVoice(audioBlob, pthPath, indexPath) {
   }
 
   toast("Waiting for file…", "info");
-  await new Promise(r => setTimeout(r, 4000));
+  await new Promise(r => setTimeout(r, 5000));
 
   toast("Downloading converted audio…", "info");
 
@@ -309,7 +318,7 @@ async function aiConvertVoice(audioBlob, pthPath, indexPath) {
     return blob;
   }
 
-  throw new Error("Conversion finished but the page could not download the file. Check Applio → assets → audios (*_output.wav).");
+  throw new Error("Conversion finished but download failed. File is on your PC in Applio → assets → audios.");
 }
 
 /* =====================================================================
@@ -419,47 +428,56 @@ $('#textBtn').addEventListener('click', async () => {
 
   try {
     const client = await getClient();
-
     toast("Running Applio TTS + voice conversion…", "info");
 
-    const ttsArgs = [
-      true,
-      "",
-      text,
-      "en-US-JennyNeural",
-      0,
-      0,
-      0.75,
-      1,
-      0.5,
-      "rmvpe",
-      "assets\\audios\\tts_output.wav",
-      "assets\\audios\\tts_rvc_output.wav",
-      voice.pth,
-      voice.index,
-      false,
-      false,
-      1,
-      false,
-      155.0,
-      false,
-      0.5,
-      "WAV",
-      "contentvec",
-      null,
-      "0"
-    ];
-
+    // Named parameters (more reliable for TTS)
     let result = null;
     try {
-      result = await client.predict("/enforce_terms_2", ttsArgs);
+      result = await client.predict("/enforce_terms_2", {
+        terms_accepted: true,
+        param_1: "",
+        param_2: text,
+        param_3: "en-US-JennyNeural",
+        param_4: 0,
+        param_5: 0,
+        param_6: 0.75,
+        param_7: 1,
+        param_8: 0.5,
+        param_9: "rmvpe",
+        param_10: "assets\\audios\\tts_output.wav",
+        param_11: "assets\\audios\\tts_rvc_output.wav",
+        param_12: voice.pth,
+        param_13: voice.index,
+        param_14: false,
+        param_15: false,
+        param_16: 1,
+        param_17: false,
+        param_18: 155.0,
+        param_19: false,
+        param_20: 0.5,
+        param_21: "WAV",
+        param_22: "contentvec",
+        param_23: null,
+        param_24: "0"
+      });
       console.log("TTS result:", result);
-    } catch (e) {
-      console.warn("TTS call error (may still succeed):", e);
+    } catch (e1) {
+      console.warn("Named TTS failed, trying positional...", e1);
+      try {
+        result = await client.predict("/enforce_terms_2", [
+          true, "", text, "en-US-JennyNeural", 0, 0, 0.75, 1, 0.5, "rmvpe",
+          "assets\\audios\\tts_output.wav", "assets\\audios\\tts_rvc_output.wav",
+          voice.pth, voice.index,
+          false, false, 1, false, 155.0, false, 0.5, "WAV", "contentvec", null, "0"
+        ]);
+        console.log("TTS positional result:", result);
+      } catch (e2) {
+        console.error("TTS failed:", e2);
+        throw new Error("Text-to-Voice failed. Make sure Applio TTS tab works manually first.");
+      }
     }
 
-    await new Promise(r => setTimeout(r, 5000));
-
+    await new Promise(r => setTimeout(r, 6000));
     toast("Downloading converted audio…", "info");
 
     const outputPath = "assets\\audios\\tts_rvc_output.wav";
@@ -482,7 +500,7 @@ $('#textBtn').addEventListener('click', async () => {
       showResult('textResult', blob, 'text_converted_' + Date.now() + '.wav');
       toast('🤖 Text converted to voice!', 'ok');
     } else {
-      throw new Error("TTS finished but could not download the audio. Check Applio for tts_rvc_output.wav");
+      throw new Error("TTS finished but download failed. Check Applio for tts_rvc_output.wav");
     }
 
   } catch (err) {
