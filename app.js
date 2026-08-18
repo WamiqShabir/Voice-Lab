@@ -414,10 +414,7 @@ $('#recordConvertBtn').addEventListener('click', async () => {
 });
 
 /* =====================================================================
-   TEXT TO VOICE (Applio TTS)
-   ===================================================================== */
-/* =====================================================================
-   TEXT TO VOICE (Applio TTS) — fixed Speaker ID
+   TEXT TO VOICE (minimal params)
    ===================================================================== */
 $('#textBtn').addEventListener('click', async () => {
   const text = ($('#textInput').value || "").trim();
@@ -431,95 +428,66 @@ $('#textBtn').addEventListener('click', async () => {
 
   try {
     const client = await getClient();
-    toast("Running Applio TTS + voice conversion…", "info");
-
-    // Try with Speaker ID as number 0 first
-    const baseArgs = {
-      terms_accepted: true,
-      param_1: "",
-      param_2: text,
-      param_3: "en-US-JennyNeural",
-      param_4: 0,
-      param_5: 0,
-      param_6: 0.75,
-      param_7: 1,
-      param_8: 0.5,
-      param_9: "rmvpe",
-      param_10: "assets\\audios\\tts_output.wav",
-      param_11: "assets\\audios\\tts_rvc_output.wav",
-      param_12: voice.pth,
-      param_13: voice.index,
-      param_14: false,
-      param_15: false,
-      param_16: 1,
-      param_17: false,
-      param_18: 155.0,
-      param_19: false,
-      param_20: 0.5,
-      param_21: "WAV",
-      param_22: "contentvec",
-      param_23: null,
-      param_24: 0          // number, not string
-    };
+    toast("Running Applio TTS…", "info");
 
     let result = null;
+
+    // Minimal call — only required fields
     try {
-      result = await client.predict("/enforce_terms_2", baseArgs);
-      console.log("TTS result:", result);
+      result = await client.predict("/enforce_terms_2", {
+        terms_accepted: true,
+        param_2: text,
+        param_3: "en-US-JennyNeural",
+        param_12: voice.pth,
+        param_13: voice.index
+      });
+      console.log("TTS minimal result:", result);
     } catch (e1) {
-      console.warn("First TTS try failed:", e1);
+      console.warn("Minimal call failed:", e1);
 
-      // Second try: Speaker ID as string "0"
-      baseArgs.param_24 = "0";
+      // Fallback: full positional but Speaker ID omitted from end
       try {
-        result = await client.predict("/enforce_terms_2", baseArgs);
-        console.log("TTS result (string 0):", result);
+        result = await client.predict("/enforce_terms_2", [
+          true,                    // terms
+          "",                      // text file
+          text,                    // text
+          "en-US-JennyNeural",     // voice
+          0,                       // speed
+          0,                       // pitch
+          0.75,                    // index rate
+          1,                       // volume
+          0.5,                     // protect
+          "rmvpe",                 // f0
+          "assets\\audios\\tts_output.wav",
+          "assets\\audios\\tts_rvc_output.wav",
+          voice.pth,
+          voice.index,
+          false, false, 1, false, 155.0, false, 0.5, "WAV", "contentvec", null
+          // no param_24 / speaker id
+        ]);
+        console.log("TTS without speaker id:", result);
       } catch (e2) {
-        console.warn("Second TTS try failed:", e2);
-
-        // Third try: positional with number 0 at the end
-        try {
-          result = await client.predict("/enforce_terms_2", [
-            true, "", text, "en-US-JennyNeural",
-            0, 0, 0.75, 1, 0.5, "rmvpe",
-            "assets\\audios\\tts_output.wav",
-            "assets\\audios\\tts_rvc_output.wav",
-            voice.pth, voice.index,
-            false, false, 1, false, 155.0, false, 0.5, "WAV", "contentvec", null,
-            0
-          ]);
-          console.log("TTS positional result:", result);
-        } catch (e3) {
-          console.error("All TTS tries failed:", e3);
-          throw new Error("Text-to-Voice failed. Try using Record or Upload instead.");
-        }
+        console.error(e2);
+        throw new Error("Applio TTS API is blocked by a Speaker ID bug. Please use Record or Upload, or use the TTS tab inside Applio.");
       }
     }
 
-    await new Promise(r => setTimeout(r, 6000));
+    await new Promise(r => setTimeout(r, 7000));
     toast("Downloading converted audio…", "info");
 
-    const outputPath = "assets\\audios\\tts_rvc_output.wav";
-    const filename = "tts_rvc_output.wav";
-
-    const urls = collectPossibleUrls(
-      result ? result.data : null,
-      outputPath,
-      filename
-    );
-
-    urls.unshift(
+    const urls = [
       `${APPLIO_URL}/file=assets/audios/tts_rvc_output.wav`,
       `${APPLIO_URL}/file=assets\\audios\\tts_rvc_output.wav`,
-      `${APPLIO_URL}/file=tts_rvc_output.wav`
-    );
+      `${APPLIO_URL}/file=tts_rvc_output.wav`,
+      ...collectPossibleUrls(result ? result.data : null, "assets\\audios\\tts_rvc_output.wav", "tts_rvc_output.wav")
+    ];
 
     const blob = await tryDownload(urls);
     if (blob) {
       showResult('textResult', blob, 'text_converted_' + Date.now() + '.wav');
       toast('🤖 Text converted to voice!', 'ok');
     } else {
-      throw new Error("TTS finished but download failed. Check Applio for tts_rvc_output.wav");
+      throw new Error("TTS may have finished. Check Applio for tts_rvc_output.wav");
     }
 
   } catch (err) {
