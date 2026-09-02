@@ -155,7 +155,7 @@ async function forceToWav(blob) {
 /* ==========================================================
    APPLIO
    ========================================================== */
-const APPLIO_URL = "https://44fbe2412a917935f2.gradio.live";
+const APPLIO_URL = "https://d36cc76d059bc2a097.gradio.live";
 
 async function getClient() {
   if (!window.GradioClient) throw new Error("Gradio client not loaded. Refresh the page.");
